@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
-import { Theme } from '../types';
+import React from 'react';
+import { Theme, SearchFilters } from '../types';
 import { Moon, Sun, Coffee } from 'lucide-react';
+import SearchBar from './SearchBar';
 
 interface SearchHeaderProps {
-  onSearch: (query: string) => void;
+  onSearch: (query: string, filters: SearchFilters) => void;
   isSearching: boolean;
   currentQuery?: string;
   onGoHome: () => void;
   currentTheme: Theme;
   onThemeChange: (theme: Theme) => void;
+  showSearchInput: boolean;
 }
 
 const SearchHeader: React.FC<SearchHeaderProps> = ({ 
@@ -17,40 +19,35 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
   currentQuery, 
   onGoHome,
   currentTheme,
-  onThemeChange
+  onThemeChange,
+  showSearchInput
 }) => {
-  const [query, setQuery] = useState(currentQuery || '');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (query.trim()) {
-      onSearch(query);
-    }
-  };
 
   return (
     <header className="sticky top-0 z-10 bg-main/90 backdrop-blur-md border-b border-borderSkin px-6 py-4 transition-colors duration-300">
-      <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div 
           onClick={onGoHome}
-          className="cursor-pointer hover:opacity-70 transition-opacity"
+          className="cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
         >
-          <h1 className="font-serif font-bold text-xl tracking-tight text-textMain">
+          <div className="w-8 h-8 bg-textMain text-main rounded-lg flex items-center justify-center font-serif font-bold text-lg">
+            S
+          </div>
+          <h1 className="font-serif font-bold text-xl tracking-tight text-textMain hidden sm:block">
             ScholarFlow
           </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 max-w-lg relative mx-4">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search for research topics..."
-            className="w-full bg-surface border border-borderSkin rounded-full px-5 py-2.5 text-textMain placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent shadow-sm transition-all font-medium text-sm"
-          />
-        </form>
+        {/* Header Search - Only shown when not on home screen */}
+        <div className={`flex-1 max-w-lg mx-4 transition-opacity duration-300 ${showSearchInput ? 'opacity-100' : 'opacity-0 pointer-events-none hidden md:block'}`}>
+           <SearchBar 
+             variant="compact" 
+             onSearch={onSearch} 
+             initialQuery={currentQuery}
+           />
+        </div>
 
-        <div className="flex items-center gap-1 bg-surface border border-borderSkin rounded-full p-1 shadow-sm">
+        <div className="flex items-center gap-1 bg-surface border border-borderSkin rounded-full p-1 shadow-sm shrink-0">
           <button
             onClick={() => onThemeChange('sepia')}
             className={`p-1.5 rounded-full transition-all ${currentTheme === 'sepia' ? 'bg-amber-200 text-stone-900 shadow-sm' : 'text-textMuted hover:bg-main'}`}

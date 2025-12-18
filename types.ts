@@ -28,3 +28,9 @@ export interface ReadingState {
 }
 
 export type Theme = 'sepia' | 'dark' | 'light';
+
+export interface SearchFilters {
+  startYear?: string;
+  endYear?: string;
+  source?: string;
+}

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Paper } from '../types';
-import { ArrowLeft, MessageSquare, Info } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Loader2 } from 'lucide-react';
 
 interface ReaderViewProps {
   paper: Paper;
@@ -13,12 +13,39 @@ interface ReaderViewProps {
 
 const ReaderView: React.FC<ReaderViewProps> = ({ paper, content, isLoading, onBack, onToggleChat, isChatOpen }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+  const [loadingMessage, setLoadingMessage] = useState('Initializing...');
 
   useEffect(() => {
     if (content && contentRef.current) {
       contentRef.current.scrollTop = 0;
     }
   }, [content]);
+
+  // Cycle through loading messages to give user feedback on the process
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const messages = [
+      "Locating full research content...",
+      `Analyzing "${paper.title}"...`,
+      "Identifying core concepts and methodology...",
+      "Simplifying technical jargon...",
+      "Structuring for easy reading...",
+      "Finalizing your conceptual summary..."
+    ];
+    
+    let index = 0;
+    setLoadingMessage(messages[0]);
+
+    const interval = setInterval(() => {
+      index++;
+      if (index < messages.length) {
+        setLoadingMessage(messages[index]);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [isLoading, paper.title]);
 
   // Simple Markdown Parser for the specific format we requested
   const renderContent = (markdown: string) => {
@@ -100,7 +127,8 @@ const ReaderView: React.FC<ReaderViewProps> = ({ paper, content, isLoading, onBa
           </span>
           <button 
             onClick={onToggleChat}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${isChatOpen ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-surface border-borderSkin text-textMain hover:border-textMuted'}`}
+            disabled={isLoading}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${isChatOpen ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-surface border-borderSkin text-textMain hover:border-textMuted'} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <MessageSquare size={18} />
             <span className="text-sm font-medium">{isChatOpen ? 'Close Chat' : 'Ask Questions'}</span>
@@ -112,22 +140,30 @@ const ReaderView: React.FC<ReaderViewProps> = ({ paper, content, isLoading, onBa
       <div className="flex-1 overflow-y-auto bg-main p-6 md:p-12 lg:px-24 scroll-smooth">
         <div className="max-w-3xl mx-auto bg-surface shadow-sm border border-borderSkin rounded-lg p-8 md:p-16 min-h-full">
           {isLoading ? (
-             <div className="space-y-8 animate-pulse">
-               <div className="h-8 bg-borderSkin rounded w-3/4 mb-8"></div>
-               <div className="space-y-3">
-                 <div className="h-4 bg-borderSkin rounded w-full"></div>
-                 <div className="h-4 bg-borderSkin rounded w-full"></div>
-                 <div className="h-4 bg-borderSkin rounded w-5/6"></div>
+             <div className="flex flex-col items-center justify-center py-24 space-y-8 animate-fade-in">
+               <div className="relative">
+                 <div className="w-20 h-20 border-4 border-borderSkin border-t-amber-500 rounded-full animate-spin"></div>
+                 <div className="absolute inset-0 flex items-center justify-center text-amber-600">
+                    <Loader2 size={24} className="animate-pulse" />
+                 </div>
                </div>
-               <div className="h-32 bg-main rounded flex items-center justify-center text-textMuted">
-                  <span className="flex items-center gap-2">
-                    <Info size={20} /> Generating reader-friendly explanation...
-                  </span>
+               
+               <div className="text-center space-y-3 max-w-md">
+                 <h3 className="text-2xl font-serif font-bold text-textMain animate-pulse">
+                   {loadingMessage}
+                 </h3>
+                 <p className="text-textMuted text-sm">
+                   This usually takes 10-20 seconds as we analyze the full paper.
+                 </p>
                </div>
-               <div className="space-y-3">
-                 <div className="h-4 bg-borderSkin rounded w-full"></div>
-                 <div className="h-4 bg-borderSkin rounded w-full"></div>
-                 <div className="h-4 bg-borderSkin rounded w-4/5"></div>
+
+               {/* Decorative textual skeleton */}
+               <div className="w-full max-w-lg space-y-4 opacity-20 mt-8 select-none pointer-events-none">
+                 <div className="h-4 bg-textMain rounded w-3/4 mx-auto"></div>
+                 <div className="h-4 bg-textMain rounded w-full"></div>
+                 <div className="h-4 bg-textMain rounded w-5/6 mx-auto"></div>
+                 <div className="h-4 bg-textMain rounded w-full"></div>
+                 <div className="h-4 bg-textMain rounded w-4/5 mx-auto"></div>
                </div>
              </div>
           ) : content ? (

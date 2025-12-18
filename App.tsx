@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { AppView, Paper, Theme } from './types';
+import { AppView, Paper, Theme, SearchFilters } from './types';
 import { searchPapers, generatePaperExplanation } from './services/geminiService';
 import SearchHeader from './components/SearchHeader';
+import SearchBar from './components/SearchBar';
 import PaperList from './components/PaperList';
 import ReaderView from './components/ReaderView';
 import ChatPanel from './components/ChatPanel';
@@ -17,13 +18,18 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<Theme>('sepia');
 
-  const handleSearch = useCallback(async (query: string) => {
+  // New state for filters
+  const [activeFilters, setActiveFilters] = useState<SearchFilters>({});
+
+  const handleSearch = useCallback(async (query: string, filters: SearchFilters) => {
     setIsSearching(true);
     setSearchQuery(query);
+    setActiveFilters(filters);
     setView(AppView.LIST);
     setPapers([]); // Clear previous results immediately
+    
     try {
-      const results = await searchPapers(query);
+      const results = await searchPapers(query, filters);
       setPapers(results);
     } catch (error) {
       console.error(error);
@@ -62,6 +68,7 @@ const App: React.FC = () => {
     setPapers([]);
     setSearchQuery('');
     setSelectedPaper(null);
+    setActiveFilters({});
   }, []);
 
   return (
@@ -74,6 +81,7 @@ const App: React.FC = () => {
         onGoHome={handleGoHome}
         currentTheme={theme}
         onThemeChange={setTheme}
+        showSearchInput={view !== AppView.SEARCH}
       />
 
       {/* Main Content Area */}
@@ -83,23 +91,39 @@ const App: React.FC = () => {
              <h2 className="font-serif text-4xl md:text-5xl font-bold text-textMain mb-6 tracking-tight">
               Discover. Read. Understand.
              </h2>
-             <p className="text-lg md:text-xl text-textMuted max-w-2xl leading-relaxed">
+             <p className="text-lg md:text-xl text-textMuted max-w-2xl leading-relaxed mb-10">
                Your intelligent research assistant. Search for any topic to get high-quality papers rewritten in simple language for easy reading.
              </p>
+             
+             {/* Center Search Bar */}
+             <SearchBar 
+               variant="centered" 
+               onSearch={handleSearch}
+             />
+             
+             <div className="mt-8 flex gap-4 text-sm text-textMuted">
+               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">arXiv</span>
+               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">Nature</span>
+               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">IEEE</span>
+               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">PubMed</span>
+             </div>
           </div>
         )}
 
         {view === AppView.LIST && (
           isSearching ? (
             <div className="flex flex-col items-center justify-center pt-32 animate-fade-in">
+              <div className="w-12 h-12 border-4 border-borderSkin border-t-textMain rounded-full animate-spin mb-4"></div>
               <p className="font-serif text-xl text-textMuted animate-pulse">Searching for research papers...</p>
+              {activeFilters.source && <p className="text-sm text-textMuted mt-2">Source: {activeFilters.source}</p>}
             </div>
           ) : (
              papers.length > 0 ? (
                <PaperList papers={papers} onSelect={handleSelectPaper} />
              ) : (
                <div className="flex flex-col items-center justify-center pt-32 text-textMuted animate-fade-in">
-                  <p>No papers found. Try a different search term.</p>
+                  <p>No papers found. Try a different search term or adjust your filters.</p>
+                  <button onClick={() => setView(AppView.SEARCH)} className="mt-4 text-textMain underline">Go back home</button>
                </div>
              )
           )

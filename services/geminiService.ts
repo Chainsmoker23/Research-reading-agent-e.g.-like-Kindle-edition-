@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Paper } from '../types';
+import { Paper, SearchFilters } from '../types';
 
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
@@ -9,15 +9,29 @@ const cleanJsonString = (str: string) => {
   return str.replace(/```json\n?|\n?```/g, '').trim();
 };
 
-export const searchPapers = async (query: string): Promise<Paper[]> => {
+export const searchPapers = async (query: string, filters?: SearchFilters): Promise<Paper[]> => {
   try {
+    let filterInstruction = "";
+    if (filters) {
+      const parts = [];
+      if (filters.startYear) parts.push(`published on or after ${filters.startYear}`);
+      if (filters.endYear) parts.push(`published on or before ${filters.endYear}`);
+      if (filters.source) parts.push(`from sources/journals strictly matching or related to "${filters.source}"`);
+      
+      if (parts.length > 0) {
+        filterInstruction = `STRICT SEARCH CONSTRAINTS: Only include papers that are ${parts.join(" AND ")}.`;
+      }
+    }
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Find 5 relevant and high-quality research papers on "${query}". 
       
+      ${filterInstruction}
+
       Crucial Requirement:
       - Search across both peer-reviewed journals (e.g., IEEE, ACM, Nature, Science, Springer) AND reputable preprint servers (e.g., arXiv, bioRxiv, medRxiv).
-      - Ensure a diverse selection if applicable.
+      - Ensure a diverse selection if applicable, unless restricted by constraints.
       
       Return a strictly valid JSON array. Each object must have:
       - title (string)
