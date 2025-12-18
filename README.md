@@ -1,20 +1,36 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# ScholarFlow
 
-# Run and deploy your AI Studio app
+**Unlock the World of Research.**
 
-This contains everything you need to run your app locally.
+ScholarFlow is an intelligent academic reading assistant designed to transform how you discover, read, and understand complex research papers. It bridges the gap between dense academic literature and accessible knowledge by acting as a translator between technical jargon and clear, narrative understanding.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1oc6ZGe9jDo5S3CJ-Sla1-ba0lk2m09QZ
+## 🚀 Features
 
-## Run Locally
+### 🔍 Intelligent Discovery
+*   **Aggregated Search:** Instantly find high-quality papers from trusted sources like **Nature**, **IEEE**, **arXiv**, **Springer**, and more.
+*   **Advanced Filtering:** Narrow down your search by publication year, journal, or specific source to find exactly what you need.
+*   **Smart Curation:** Results are filtered for quality and relevance, helping you decide what to read next with concise abstracts.
 
-**Prerequisites:**  Node.js
+### 📖 Kindle-Style Reading Experience
+*   **Distraction-Free UI:** A clean, minimal interface designed specifically for long-form reading without eye strain.
+*   **Conceptual Simplification:** ScholarFlow doesn't just display text; it **rewrites** complex papers into clear, narrative-driven summaries. It explains the "Big Picture," "Core Concepts," and "Methodology" in plain English.
+*   **Customizable Themes:**
+    *   **Sepia:** Warm tones perfect for long reading sessions.
+    *   **Dark:** High contrast for low-light environments.
+    *   **Light:** Crisp and clean standard view.
 
+### 🧠 Interactive AI Mentor
+*   **Context-Aware Q&A:** Don't just read—discuss. Ask the built-in AI mentor questions about the paper.
+*   **Deep Dives:** Clarify methodologies, interpret results, or discuss implications directly within the reading interface.
+*   **Grounded Answers:** The assistant stays focused strictly on the content of the selected paper to ensure accuracy.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🎯 Mission
+
+Our mission is to democratize access to scientific knowledge by lowering the cognitive load required to read and understand state-of-the-art research. Whether you are a student, a researcher, or a lifelong learner, ScholarFlow helps you master complex topics effortlessly.
+
+## 🛠️ Usage
+
+1.  **Search:** Enter a topic (e.g., "Quantum Computing" or "CRISPR") in the central search bar.
+2.  **Filter:** Use the filter menu to select specific years or journals (e.g., "After 2023", "Nature").
+3.  **Read:** Select a paper to generate a simplified "Kindle-style" adaptation.
+4.  **Ask:** Open the chat panel to ask specific questions about the research.
