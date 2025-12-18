@@ -1,0 +1,5 @@
+{
+  "name": "ScholarFlow",
+  "description": "A Kindle-style academic reading assistant that discovers, simplifies, and discusses research papers.",
+  "requestFramePermissions": []
+}

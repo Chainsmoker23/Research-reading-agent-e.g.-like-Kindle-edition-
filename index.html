@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ScholarFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              main: 'var(--bg-main)',
+              surface: 'var(--bg-surface)',
+              surfaceHover: 'var(--bg-surface-hover)',
+              textMain: 'var(--text-main)',
+              textMuted: 'var(--text-muted)',
+              borderSkin: 'var(--border-skin)',
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        /* Sepia (Default) */
+        --bg-main: #fbf0d9;
+        --bg-surface: #ffffff;
+        --bg-surface-hover: #fdfbf7;
+        --text-main: #292524; /* stone-800 */
+        --text-muted: #78716c; /* stone-500 */
+        --border-skin: #e7e5e4; /* stone-200 */
+      }
+
+      .theme-dark {
+        --bg-main: #121212;
+        --bg-surface: #1e1e1e;
+        --bg-surface-hover: #2d2d2d;
+        --text-main: #e5e5e5;
+        --text-muted: #a3a3a3;
+        --border-skin: #333333;
+      }
+
+      .theme-light {
+        --bg-main: #f3f4f6; /* gray-100 */
+        --bg-surface: #ffffff;
+        --bg-surface-hover: #f9fafb;
+        --text-main: #111827; /* gray-900 */
+        --text-muted: #6b7280; /* gray-500 */
+        --border-skin: #e5e7eb; /* gray-200 */
+      }
+
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      .font-serif {
+        font-family: 'Merriweather', serif;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      
+      /* Animations */
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      .animate-fade-in-up {
+        animation: fadeInUp 0.5s ease-out forwards;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-main text-textMain antialiased h-screen overflow-hidden selection:bg-amber-200 selection:text-stone-900 transition-colors duration-300">
+    <div id="root"></div>
+  </body>
+</html>
