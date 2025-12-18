@@ -1,5 +1,5 @@
 {
   "name": "ScholarFlow",
-  "description": "A Kindle-style academic reading assistant that discovers, simplifies, and discusses research papers.",
+  "description": "ScholarFlow is your premier academic reading companion. It transforms dense research papers from top sources like Nature, IEEE, and arXiv into clear, accessible narratives. Featuring a distraction-free Kindle-style reader, customizable themes (Sepia, Dark, Light), and an intelligent interactive Q&A mentor, ScholarFlow helps you discover, read, and master complex topics effortlessly.",
   "requestFramePermissions": []
 }

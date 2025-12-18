@@ -87,13 +87,18 @@ const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 relative overflow-y-auto">
         {view === AppView.SEARCH && (
-          <div className="flex flex-col items-center justify-center h-[calc(100vh-140px)] px-6 text-center animate-fade-in">
-             <h2 className="font-serif text-4xl md:text-5xl font-bold text-textMain mb-6 tracking-tight">
-              Discover. Read. Understand.
+          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-140px)] px-6 text-center animate-fade-in py-12">
+             <h2 className="font-serif text-4xl md:text-6xl font-bold text-textMain mb-6 tracking-tight leading-tight">
+              Unlock the World of Research.
              </h2>
-             <p className="text-lg md:text-xl text-textMuted max-w-2xl leading-relaxed mb-10">
-               Your intelligent research assistant. Search for any topic to get high-quality papers rewritten in simple language for easy reading.
-             </p>
+             <div className="max-w-3xl space-y-4 mb-12">
+               <p className="text-lg md:text-xl text-textMuted leading-relaxed">
+                 ScholarFlow is your bridge to scientific understanding. We aggregate papers from trusted global sources like <strong>Nature</strong>, <strong>IEEE</strong>, and <strong>arXiv</strong>, transforming complex academic texts into clear, readable narratives.
+               </p>
+               <p className="text-lg md:text-xl text-textMuted leading-relaxed">
+                 Experience research like never before with our <strong>distraction-free reader</strong>, <strong>intelligent conceptual simplification</strong>, and an always-available <strong>AI mentor</strong> to answer your questions.
+               </p>
+             </div>
              
              {/* Center Search Bar */}
              <SearchBar 
