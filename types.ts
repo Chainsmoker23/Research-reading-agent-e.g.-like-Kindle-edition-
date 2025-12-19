@@ -1,3 +1,4 @@
+
 export interface Paper {
   id: string;
   title: string;
@@ -20,6 +21,7 @@ export enum AppView {
   LIST = 'LIST',
   READER = 'READER',
   TREE = 'TREE',
+  BADGES = 'BADGES',
 }
 
 export interface ReadingState {
@@ -40,4 +42,14 @@ export interface ReadHistoryItem {
   id: string;
   paper: Paper;
   timestamp: number;
+}
+
+export interface Rank {
+  threshold: number;
+  title: string;
+  color: string;
+  description: string;
+  lore: string;
+  cognitiveUpgrade: string;
+  significance: string;
 }

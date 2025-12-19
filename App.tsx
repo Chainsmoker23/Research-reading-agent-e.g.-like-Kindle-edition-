@@ -7,6 +7,7 @@ import PaperList from './components/PaperList';
 import ReaderView from './components/ReaderView';
 import ChatPanel from './components/ChatPanel';
 import KnowledgeTree from './components/KnowledgeTree';
+import BadgeGallery from './components/BadgeGallery';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.SEARCH);
@@ -97,6 +98,11 @@ const App: React.FC = () => {
     setIsChatOpen(false);
   }, []);
 
+  const handleViewBadges = useCallback(() => {
+    setView(AppView.BADGES);
+    setIsChatOpen(false);
+  }, []);
+
   const isCurrentPaperRead = selectedPaper 
     ? readHistory.some(item => item.paper.title === selectedPaper.title) // Use title as ID might vary in search results vs history
     : false;
@@ -113,6 +119,7 @@ const App: React.FC = () => {
         onThemeChange={setTheme}
         showSearchInput={view !== AppView.SEARCH}
         onViewTree={handleViewTree}
+        onViewBadges={handleViewBadges}
       />
 
       {/* Main Content Area */}
@@ -191,6 +198,10 @@ const App: React.FC = () => {
             onSelectPaper={handleSelectPaper}
             onGoHome={handleGoHome}
           />
+        )}
+
+        {view === AppView.BADGES && (
+          <BadgeGallery currentReadCount={readHistory.length} />
         )}
       </main>
     </div>

@@ -1,7 +1,9 @@
-import React from 'react';
-import { ReadHistoryItem, Paper } from '../types';
-import { Sprout, Calendar, ArrowRight, Trophy, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { ReadHistoryItem, Paper, Rank } from '../types';
+import { Sprout, Calendar, ArrowRight } from 'lucide-react';
 import RankBadge from './RankBadge';
+import BadgeDetailModal from './BadgeDetailModal';
+import { RANKS } from '../data/ranks';
 
 interface KnowledgeTreeProps {
   history: ReadHistoryItem[];
@@ -9,34 +11,10 @@ interface KnowledgeTreeProps {
   onGoHome: () => void;
 }
 
-type Rank = {
-  threshold: number;
-  title: string;
-  color: string;
-  description: string;
-};
-
-// Updated Rank Titles with a Scientific Career Theme
-const RANKS: Rank[] = [
-  { threshold: 0, title: "Curious Observer", color: "text-emerald-600", description: "Taking the first step into the world of knowledge." },
-  { threshold: 10, title: "Lab Assistant", color: "text-stone-600", description: "Getting your hands dirty with real research." },
-  { threshold: 50, title: "Field Researcher", color: "text-amber-700", description: "Connecting dots and gathering raw data." },
-  { threshold: 100, title: "Associate Scholar", color: "text-orange-600", description: "A published contributor to the collective mind." },
-  { threshold: 500, title: "Master Scholar", color: "text-sky-600", description: "Deep expertise in chosen fields." },
-  { threshold: 1000, title: "Innovation Pioneer", color: "text-lime-600", description: "Breaking new ground with bright ideas." },
-  { threshold: 5000, title: "Lead Scientist", color: "text-blue-600", description: "Directing the path of discovery." },
-  { threshold: 10000, title: "Distinguished Fellow", color: "text-indigo-600", description: "Recognized globally for contributions." },
-  { threshold: 15000, title: "Quantum Visionary", color: "text-violet-600", description: "Seeing the fundamental fabrics of reality." },
-  { threshold: 20000, title: "Neural Architect", color: "text-fuchsia-600", description: "Mapping the complexities of thought itself." },
-  { threshold: 30000, title: "Genetic Oracle", color: "text-rose-600", description: "Decoding the building blocks of life." },
-  { threshold: 50000, title: "Cosmic Sage", color: "text-purple-600", description: "Wisdom that spans across galaxies." },
-  { threshold: 100000, title: "Omniscient Entity", color: "text-yellow-600", description: "One with the infinite library of the universe." },
-  { threshold: 150000, title: "Assistant of God", color: "text-amber-500", description: "Helping manage the flow of infinite wisdom." },
-  { threshold: 200000, title: "God of Knowledge", color: "text-amber-600", description: "The supreme authority on all that is known." },
-  { threshold: 400000, title: "The God", color: "text-yellow-500", description: "Now you are God." },
-];
-
 const KnowledgeTree: React.FC<KnowledgeTreeProps> = ({ history, onSelectPaper, onGoHome }) => {
+  const [selectedRank, setSelectedRank] = useState<Rank | null>(null);
+  const [selectedRankIndex, setSelectedRankIndex] = useState<number>(0);
+  
   // Sort history by timestamp (newest first for the list)
   const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
   const readCount = history.length;
@@ -78,19 +56,27 @@ const KnowledgeTree: React.FC<KnowledgeTreeProps> = ({ history, onSelectPaper, o
     });
   };
 
+  const handleRankClick = (rank: Rank, index: number) => {
+    setSelectedRank(rank);
+    setSelectedRankIndex(index);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-main p-6 pb-20 animate-fade-in">
       <div className="max-w-4xl mx-auto">
         
         {/* --- Gamification Dashboard --- */}
-        <div className="bg-surface border border-borderSkin rounded-2xl p-6 md:p-8 shadow-sm mb-12 relative overflow-hidden">
-          {/* Decorative background glow based on current rank color (using a generic yellow/amber for simplicity in string interp or just static) */}
+        <div 
+          onClick={() => handleRankClick(current, currentIndex)}
+          className="bg-surface border border-borderSkin rounded-2xl p-6 md:p-8 shadow-sm mb-12 relative overflow-hidden cursor-pointer hover:shadow-md transition-all group"
+        >
+          {/* Decorative background glow */}
           <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-gray-200/50 to-transparent rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
 
           <div className="flex flex-col md:flex-row items-center gap-6 md:gap-10 relative z-10">
             {/* Rank Badge */}
-            <div className="relative shrink-0 group">
-              <div className="group-hover:scale-105 transition-transform duration-300 transform">
+            <div className="relative shrink-0">
+              <div className="group-hover:scale-110 transition-transform duration-500 transform">
                 <RankBadge rankIndex={currentIndex} size="xl" />
               </div>
             </div>
@@ -125,42 +111,11 @@ const KnowledgeTree: React.FC<KnowledgeTreeProps> = ({ history, onSelectPaper, o
                   ></div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* --- Achievement Ladder --- */}
-        <div className="mb-16 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-          <h3 className="font-serif font-bold text-xl text-textMain mb-6 flex items-center gap-2 border-b border-borderSkin pb-3">
-            <Trophy size={20} className="text-amber-500" />
-            Career Ladder
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {RANKS.map((rank, index) => {
-              // VISUALIZATION MODE: Always unlocked to see colors
-              const isUnlocked = true; 
               
-              return (
-                <div 
-                  key={rank.title} 
-                  className={`relative p-4 rounded-xl border transition-all duration-300 flex flex-col items-center text-center bg-surface border-borderSkin shadow-sm hover:shadow-md`}
-                >
-                  <div className="mb-3">
-                    <RankBadge rankIndex={index} size="md" locked={false} />
-                  </div>
-                  
-                  <h4 className={`font-serif font-bold text-sm mb-1 text-textMain`}>
-                    {rank.title}
-                  </h4>
-                  
-                  <div className="flex flex-col items-center gap-1 text-xs mt-2 w-full">
-                    <span className="text-textMuted font-mono">
-                      {rank.threshold} reads
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+              <p className="text-xs text-textMuted text-center md:text-left mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                Click to view details
+              </p>
+            </div>
           </div>
         </div>
 
@@ -243,6 +198,17 @@ const KnowledgeTree: React.FC<KnowledgeTreeProps> = ({ history, onSelectPaper, o
                </div>
             </div>
           </div>
+        )}
+
+        {/* --- Badge Detail Modal --- */}
+        {selectedRank && (
+          <BadgeDetailModal
+            rank={selectedRank}
+            rankIndex={selectedRankIndex}
+            isUnlocked={readCount >= selectedRank.threshold}
+            onClose={() => setSelectedRank(null)}
+            currentReadCount={readCount}
+          />
         )}
       </div>
     </div>

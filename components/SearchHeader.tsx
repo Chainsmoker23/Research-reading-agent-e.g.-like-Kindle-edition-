@@ -1,6 +1,6 @@
 import React from 'react';
 import { Theme, SearchFilters } from '../types';
-import { Moon, Sun, Coffee, Sprout } from 'lucide-react';
+import { Moon, Sun, Coffee, Sprout, Trophy } from 'lucide-react';
 import SearchBar from './SearchBar';
 
 interface SearchHeaderProps {
@@ -12,6 +12,7 @@ interface SearchHeaderProps {
   onThemeChange: (theme: Theme) => void;
   showSearchInput: boolean;
   onViewTree: () => void;
+  onViewBadges: () => void;
 }
 
 const SearchHeader: React.FC<SearchHeaderProps> = ({ 
@@ -22,7 +23,8 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
   currentTheme,
   onThemeChange,
   showSearchInput,
-  onViewTree
+  onViewTree,
+  onViewBadges
 }) => {
 
   return (
@@ -50,6 +52,15 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={onViewBadges}
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-amber-50 hover:border-amber-200 transition-colors text-sm font-medium"
+            title="Achievements"
+          >
+            <Trophy size={16} className="text-amber-600"/>
+            <span>Achievements</span>
+          </button>
+
           <button
             onClick={onViewTree}
             className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-emerald-50 hover:border-emerald-200 transition-colors text-sm font-medium"
