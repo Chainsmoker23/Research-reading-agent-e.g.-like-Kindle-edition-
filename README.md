@@ -1,8 +1,8 @@
-# ScholarFlow
+# OpenParallax
 
 **Unlock the World of Research.**
 
-ScholarFlow is an intelligent academic reading assistant designed to transform how you discover, read, and understand complex research papers. It bridges the gap between dense academic literature and accessible knowledge by acting as a translator between technical jargon and clear, narrative understanding.
+OpenParallax is an intelligent academic reading assistant designed to transform how you discover, read, and understand complex research papers. It bridges the gap between dense academic literature and accessible knowledge by acting as a translator between technical jargon and clear, narrative understanding.
 
 ## 🚀 Features
 
@@ -13,7 +13,7 @@ ScholarFlow is an intelligent academic reading assistant designed to transform h
 
 ### 📖 Kindle-Style Reading Experience
 *   **Distraction-Free UI:** A clean, minimal interface designed specifically for long-form reading without eye strain.
-*   **Conceptual Simplification:** ScholarFlow doesn't just display text; it **rewrites** complex papers into clear, narrative-driven summaries. It explains the "Big Picture," "Core Concepts," and "Methodology" in plain English.
+*   **Conceptual Simplification:** OpenParallax doesn't just display text; it **rewrites** complex papers into clear, narrative-driven summaries. It explains the "Big Picture," "Core Concepts," and "Methodology" in plain English.
 *   **Customizable Themes:**
     *   **Sepia:** Warm tones perfect for long reading sessions.
     *   **Dark:** High contrast for low-light environments.
@@ -26,7 +26,7 @@ ScholarFlow is an intelligent academic reading assistant designed to transform h
 
 ## 🎯 Mission
 
-Our mission is to democratize access to scientific knowledge by lowering the cognitive load required to read and understand state-of-the-art research. Whether you are a student, a researcher, or a lifelong learner, ScholarFlow helps you master complex topics effortlessly.
+Our mission is to democratize access to scientific knowledge by lowering the cognitive load required to read and understand state-of-the-art research. Whether you are a student, a researcher, or a lifelong learner, OpenParallax helps you master complex topics effortlessly.
 
 ## 🛠️ Usage
 

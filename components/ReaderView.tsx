@@ -122,9 +122,9 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   };
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-80px)] transition-all duration-300 ${isChatOpen ? 'mr-0 lg:mr-[400px]' : ''}`}>
+    <div className={`flex flex-col h-full transition-all duration-300 ${isChatOpen ? 'mr-0 lg:mr-[400px]' : ''}`}>
       {/* Toolbar */}
-      <div className="sticky top-0 z-20 bg-main border-b border-borderSkin px-6 py-3 flex justify-between items-center shadow-sm">
+      <div className="sticky top-0 z-20 bg-main border-b border-borderSkin px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
         <button 
           onClick={onBack}
           className="flex items-center gap-2 text-textMuted hover:text-textMain transition-colors font-medium text-sm"

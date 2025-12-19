@@ -62,7 +62,7 @@ const KnowledgeTree: React.FC<KnowledgeTreeProps> = ({ history, onSelectPaper, o
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-main p-6 pb-20 animate-fade-in">
+    <div className="flex-1 bg-main p-6 pb-20 animate-fade-in">
       <div className="max-w-4xl mx-auto">
         
         {/* --- Gamification Dashboard --- */}

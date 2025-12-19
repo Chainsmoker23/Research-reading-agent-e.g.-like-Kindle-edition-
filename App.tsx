@@ -8,9 +8,10 @@ import ReaderView from './components/ReaderView';
 import ChatPanel from './components/ChatPanel';
 import KnowledgeTree from './components/KnowledgeTree';
 import BadgeGallery from './components/BadgeGallery';
+import LandingPage from './components/LandingPage';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<AppView>(AppView.SEARCH);
+  const [view, setView] = useState<AppView>(AppView.LANDING);
   const [papers, setPapers] = useState<Paper[]>([]);
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const [paperContent, setPaperContent] = useState<string | null>(null);
@@ -79,6 +80,10 @@ const App: React.FC = () => {
     setActiveFilters({});
   }, []);
 
+  const handleStart = useCallback(() => {
+    setView(AppView.SEARCH);
+  }, []);
+
   const handleMarkAsRead = useCallback((paper: Paper) => {
     // Check if already in history
     if (!readHistory.some(item => item.paper.id === paper.id)) {
@@ -107,23 +112,36 @@ const App: React.FC = () => {
     ? readHistory.some(item => item.paper.title === selectedPaper.title) // Use title as ID might vary in search results vs history
     : false;
 
+  // Determine layout class based on view
+  // Reader view needs fixed height to manage its own internal scroll and chat panel
+  // Landing and other views should allow the window to scroll naturally
+  const appLayoutClass = view === AppView.READER 
+    ? 'h-screen overflow-hidden' 
+    : 'min-h-screen';
+
   return (
-    <div className={`min-h-screen flex flex-col bg-main selection:bg-amber-200 transition-colors duration-300 theme-${theme}`}>
+    <div className={`flex flex-col bg-main selection:bg-amber-200 transition-colors duration-300 theme-${theme} ${appLayoutClass}`}>
       {/* Universal Search Header */}
       <SearchHeader 
         onSearch={handleSearch} 
         isSearching={isSearching} 
         currentQuery={searchQuery}
-        onGoHome={handleGoHome}
+        onGoHome={() => setView(AppView.LANDING)}
         currentTheme={theme}
         onThemeChange={setTheme}
-        showSearchInput={view !== AppView.SEARCH}
+        showSearchInput={view !== AppView.SEARCH && view !== AppView.LANDING}
         onViewTree={handleViewTree}
         onViewBadges={handleViewBadges}
+        isLandingPage={view === AppView.LANDING}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 relative overflow-y-auto">
+      <main className="flex-1 relative">
+        
+        {view === AppView.LANDING && (
+          <LandingPage onStart={handleStart} theme={theme} />
+        )}
+
         {view === AppView.SEARCH && (
           <div className="flex flex-col items-center justify-center min-h-[calc(100vh-140px)] px-6 text-center animate-fade-in py-12">
              <h2 className="font-serif text-4xl md:text-6xl font-bold text-textMain mb-6 tracking-tight leading-tight">
@@ -131,10 +149,8 @@ const App: React.FC = () => {
              </h2>
              <div className="max-w-3xl space-y-4 mb-12">
                <p className="text-lg md:text-xl text-textMuted leading-relaxed">
-                 ScholarFlow is your bridge to scientific understanding. We aggregate papers from trusted global sources like <strong>Nature</strong>, <strong>IEEE</strong>, and <strong>arXiv</strong>, transforming complex academic texts into clear, readable narratives.
-               </p>
-               <p className="text-lg md:text-xl text-textMuted leading-relaxed">
-                 Experience research like never before with our <strong>distraction-free reader</strong>, <strong>intelligent conceptual simplification</strong>, and an always-available <strong>AI mentor</strong> to answer your questions.
+                 OpenParallax bridges the gap between complex data and clear understanding. 
+                 Search sources like <strong>Nature</strong>, <strong>IEEE</strong>, and <strong>arXiv</strong> instantly.
                </p>
              </div>
              
@@ -148,7 +164,6 @@ const App: React.FC = () => {
                <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">arXiv</span>
                <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">Nature</span>
                <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">IEEE</span>
-               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">PubMed</span>
              </div>
           </div>
         )}

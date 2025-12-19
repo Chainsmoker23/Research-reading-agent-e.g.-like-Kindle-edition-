@@ -13,6 +13,7 @@ interface SearchHeaderProps {
   showSearchInput: boolean;
   onViewTree: () => void;
   onViewBadges: () => void;
+  isLandingPage?: boolean;
 }
 
 const SearchHeader: React.FC<SearchHeaderProps> = ({ 
@@ -24,26 +25,29 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
   onThemeChange,
   showSearchInput,
   onViewTree,
-  onViewBadges
+  onViewBadges,
+  isLandingPage = false
 }) => {
 
   return (
-    <header className="sticky top-0 z-10 bg-main/90 backdrop-blur-md border-b border-borderSkin px-6 py-4 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+    <header className={`sticky top-0 z-50 transition-colors duration-300 ${isLandingPage ? 'bg-transparent absolute w-full border-none' : 'bg-main/90 backdrop-blur-md border-b border-borderSkin'} px-4 md:px-6 py-3 md:py-4`}>
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 md:gap-4">
+        
+        {/* Logo Area */}
         <div 
           onClick={onGoHome}
-          className="cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
+          className="cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2 shrink-0"
         >
-          <div className="w-8 h-8 bg-textMain text-main rounded-lg flex items-center justify-center font-serif font-bold text-lg">
-            S
+          <div className="w-8 h-8 bg-textMain text-main rounded-lg flex items-center justify-center font-serif font-bold text-lg shadow-sm">
+            O
           </div>
           <h1 className="font-serif font-bold text-xl tracking-tight text-textMain hidden sm:block">
-            ScholarFlow
+            OpenParallax
           </h1>
         </div>
 
-        {/* Header Search - Only shown when not on home screen */}
-        <div className={`flex-1 max-w-lg mx-4 transition-opacity duration-300 ${showSearchInput ? 'opacity-100' : 'opacity-0 pointer-events-none hidden md:block'}`}>
+        {/* Header Search - Hidden on mobile if not needed, or adapts width. ALSO HIDDEN ON LANDING PAGE */}
+        <div className={`flex-1 max-w-lg mx-2 md:mx-4 transition-opacity duration-300 ${showSearchInput && !isLandingPage ? 'opacity-100' : 'opacity-0 pointer-events-none hidden md:block'}`}>
            <SearchBar 
              variant="compact" 
              onSearch={onSearch} 
@@ -51,26 +55,38 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
            />
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onViewBadges}
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-amber-50 hover:border-amber-200 transition-colors text-sm font-medium"
-            title="Achievements"
-          >
-            <Trophy size={16} className="text-amber-600"/>
-            <span>Achievements</span>
-          </button>
+        {/* Actions Area */}
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
+          
+          {/* Navigation Buttons - Hidden on Landing Page */}
+          {!isLandingPage && (
+            <>
+              {/* Achievements Button - Icon on Mobile, Text on Desktop */}
+              <button
+                onClick={onViewBadges}
+                className="flex items-center gap-2 px-2.5 py-2 md:px-3 md:py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-amber-50 hover:border-amber-200 transition-colors text-sm font-medium shadow-sm"
+                title="Achievements"
+                aria-label="View Achievements"
+              >
+                <Trophy size={18} className="text-amber-600"/>
+                <span className="hidden md:inline">Achievements</span>
+              </button>
 
-          <button
-            onClick={onViewTree}
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-emerald-50 hover:border-emerald-200 transition-colors text-sm font-medium"
-            title="My Knowledge Tree"
-          >
-            <Sprout size={16} className="text-emerald-600"/>
-            <span>My Tree</span>
-          </button>
+              {/* Tree Button - Icon on Mobile, Text on Desktop */}
+              <button
+                onClick={onViewTree}
+                className="flex items-center gap-2 px-2.5 py-2 md:px-3 md:py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-emerald-50 hover:border-emerald-200 transition-colors text-sm font-medium shadow-sm"
+                title="My Knowledge Tree"
+                aria-label="View Knowledge Tree"
+              >
+                <Sprout size={18} className="text-emerald-600"/>
+                <span className="hidden md:inline">My Tree</span>
+              </button>
+            </>
+          )}
 
-          <div className="flex items-center gap-1 bg-surface border border-borderSkin rounded-full p-1 shadow-sm shrink-0">
+          {/* Theme Toggle - Collapsed on very small screens if needed, but fits mostly */}
+          <div className={`hidden sm:flex items-center gap-1 rounded-full p-1 shrink-0 ${isLandingPage ? 'bg-transparent' : 'bg-surface border border-borderSkin shadow-sm'}`}>
             <button
               onClick={() => onThemeChange('sepia')}
               className={`p-1.5 rounded-full transition-all ${currentTheme === 'sepia' ? 'bg-amber-200 text-stone-900 shadow-sm' : 'text-textMuted hover:bg-main'}`}
@@ -93,6 +109,19 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
               <Moon size={16} />
             </button>
           </div>
+          
+          {/* Mobile Theme Toggle (Simple Cycler) - Visible only on XS screens */}
+          <button 
+             onClick={() => {
+               if (currentTheme === 'sepia') onThemeChange('light');
+               else if (currentTheme === 'light') onThemeChange('dark');
+               else onThemeChange('sepia');
+             }}
+             className={`sm:hidden p-2 rounded-full border text-textMain shadow-sm ${isLandingPage ? 'bg-main/50 border-transparent' : 'bg-surface border-borderSkin'}`}
+          >
+            {currentTheme === 'sepia' ? <Coffee size={18} /> : currentTheme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
         </div>
       </div>
     </header>

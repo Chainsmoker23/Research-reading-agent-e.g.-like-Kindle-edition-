@@ -17,6 +17,7 @@ export interface ChatMessage {
 }
 
 export enum AppView {
+  LANDING = 'LANDING',
   SEARCH = 'SEARCH',
   LIST = 'LIST',
   READER = 'READER',
