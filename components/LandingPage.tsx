@@ -3,9 +3,13 @@ import {
   BookOpen, Brain, Sprout, ArrowRight, Search, 
   Atom, Globe, Sparkles, Feather, ChevronDown,
   Layers, Zap, Library, FileText, CheckCircle2,
-  Network, Users, Activity, GraduationCap
+  Network, Users, Activity, GraduationCap,
+  BrainCircuit, Highlighter, Coffee
 } from 'lucide-react';
 import { Theme } from '../types';
+import { AntMascot } from './AntMascot';
+import { SpiderMascot } from './SpiderMascot';
+import { WanderingAnt } from './WanderingAnt';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -80,19 +84,55 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, theme }) => {
           <div className="absolute top-[40%] -right-[10%] w-[40vw] h-[40vw] bg-fuchsia-300/30 dark:bg-fuchsia-900/20 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '2s' }}></div>
         </div>
 
-        {/* Parallax Elements */}
+        {/* Parallax Elements - Mascots & Icons */}
         <div className="absolute inset-0 pointer-events-none z-0">
+           {/* Original Icons */}
            <div style={parallax(-0.5)} className="absolute top-1/4 left-[15%] text-purple-500/30">
              <Globe size={80} strokeWidth={0.5} />
            </div>
            <div style={parallax(-0.8)} className="absolute top-1/3 right-[10%] text-fuchsia-500/30">
              <Atom size={120} strokeWidth={0.5} />
            </div>
-           <div style={parallax(0.3, 'rotate')} className="absolute bottom-1/4 left-[20%] text-indigo-400/20">
-             <Feather size={60} strokeWidth={1} />
+           
+           {/* WANDERING ANTS COLONY */}
+           {/* We use a container ref for the ants to wander within */}
+           <div className="absolute inset-0 pointer-events-none" id="ant-container">
+              <WanderingAnt 
+                variant="fire" 
+                className="w-12 h-12 md:w-16 md:h-16 drop-shadow-md" 
+                boundsRef={heroRef} 
+                startPos={{x: 80, y: 20}}
+              />
+              <WanderingAnt 
+                variant="black" 
+                className="w-10 h-10 md:w-14 md:h-14 drop-shadow-md" 
+                boundsRef={heroRef} 
+                startPos={{x: 10, y: 80}}
+              />
+              <WanderingAnt 
+                variant="red" 
+                className="w-8 h-8 md:w-10 md:h-10 drop-shadow-md" 
+                boundsRef={heroRef} 
+                startPos={{x: 20, y: 85}}
+              />
+              <WanderingAnt 
+                variant="green" 
+                className="w-8 h-8 drop-shadow-md" 
+                boundsRef={heroRef} 
+                startPos={{x: 90, y: 90}}
+              />
+              <WanderingAnt 
+                variant="hybrid" 
+                className="w-8 h-8 opacity-70" 
+                boundsRef={heroRef} 
+                startPos={{x: 15, y: 30}}
+              />
            </div>
-           <div style={parallax(0.6)} className="absolute bottom-[15%] right-[20%] text-violet-400/20">
-             <Sparkles size={40} strokeWidth={1} />
+
+           {/* SPIDER: Black Widow hanging from top left */}
+           <div className="absolute -top-20 left-[5%] animate-float-delayed" style={{ animationDuration: '8s' }}>
+              <div className="h-40 w-[1px] bg-gray-400 mx-auto opacity-50"></div>
+              <SpiderMascot variant="black" className="w-16 h-16 rotate-180 drop-shadow-xl" />
            </div>
         </div>
 
@@ -182,80 +222,143 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, theme }) => {
           </div>
 
           <div className="relative flex flex-col md:flex-row items-center justify-center gap-8 md:gap-0">
-            {/* Left Card: The Problem */}
-            <div className="relative w-full md:w-[400px] h-[500px] bg-white border border-borderSkin shadow-lg rounded-xl p-6 transform md:rotate-[-3deg] md:translate-x-12 z-10 overflow-hidden hover:z-30 hover:rotate-0 transition-all duration-500 group">
-              <div className="absolute inset-0 bg-red-500/5 group-hover:bg-transparent transition-colors"></div>
-              <div className="flex justify-between items-center mb-4 border-b pb-2">
-                <div className="text-xs text-red-500 font-bold uppercase flex items-center gap-1"><FileText size={12}/> Standard PDF</div>
-                <div className="text-[10px] text-gray-400">Page 1 of 24</div>
+            {/* Left Card: The Chaotic Problem */}
+            <div className="relative w-full md:w-[400px] h-[550px] bg-[#fdfbf7] border border-borderSkin shadow-lg rounded-sm p-8 transform md:rotate-[-3deg] md:translate-x-12 z-10 overflow-hidden hover:z-30 hover:rotate-0 transition-all duration-500 group">
+              
+              {/* Coffee Stain */}
+              <svg className="absolute top-10 right-8 w-24 h-24 opacity-10 pointer-events-none mix-blend-multiply" viewBox="0 0 100 100">
+                <path d="M50,10 A40,40 0 1,1 10,50 A40,40 0 0,1 50,10 M50,15 A35,35 0 1,0 15,50 A35,35 0 0,0 50,15" fill="#5D4037" />
+                <path d="M50,10 Q60,5 70,15" fill="none" stroke="#5D4037" strokeWidth="2" opacity="0.5" />
+              </svg>
+
+              {/* Header Info */}
+              <div className="border-b-2 border-black mb-4 pb-2">
+                 <div className="h-4 w-3/4 bg-black/80 mb-2"></div>
+                 <div className="h-3 w-1/2 bg-black/60"></div>
               </div>
-              <div className="space-y-2 opacity-60 blur-[0.5px] group-hover:blur-0 transition-all">
-                <div className="h-4 w-3/4 bg-gray-300 rounded"></div>
-                <div className="grid grid-cols-2 gap-2 text-[6px] text-justify leading-tight font-serif text-gray-600">
-                  <div className="space-y-1">
-                     {[...Array(12)].map((_,i) => <div key={i} className="h-1.5 w-full bg-gray-200 rounded"></div>)}
-                  </div>
-                  <div className="space-y-1">
-                     {[...Array(12)].map((_,i) => <div key={i} className="h-1.5 w-full bg-gray-200 rounded"></div>)}
-                  </div>
-                </div>
-                <div className="h-24 w-full bg-gray-100 border border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-xs mt-2">Complex Diagram</div>
-                <div className="grid grid-cols-2 gap-2 text-[6px] text-justify leading-tight font-serif text-gray-600 mt-2">
-                  <div className="space-y-1">
-                     {[...Array(8)].map((_,i) => <div key={i} className="h-1.5 w-full bg-gray-200 rounded"></div>)}
-                  </div>
-                  <div className="space-y-1">
-                     {[...Array(8)].map((_,i) => <div key={i} className="h-1.5 w-full bg-gray-200 rounded"></div>)}
-                  </div>
-                </div>
+
+              {/* Dense 2-Column Layout */}
+              <div className="grid grid-cols-2 gap-3 h-full opacity-70">
+                 {/* Column 1 */}
+                 <div className="space-y-1.5">
+                    {[...Array(20)].map((_, i) => (
+                      <div key={`c1-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
+                    ))}
+                    <div className="h-16 w-full bg-black/10 border border-black/20 my-2 flex items-center justify-center">
+                       <Activity size={12} className="opacity-20"/>
+                    </div>
+                    {[...Array(15)].map((_, i) => (
+                      <div key={`c1-b-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
+                    ))}
+                 </div>
+                 {/* Column 2 */}
+                 <div className="space-y-1.5">
+                    {[...Array(12)].map((_, i) => (
+                      <div key={`c2-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
+                    ))}
+                    {/* Scribbled Note in Margin */}
+                    <div className="relative">
+                       <div className="absolute -left-4 top-0 w-24 h-8 border-2 border-red-500/50 rounded-full rotate-[-10deg]"></div>
+                       <span className="absolute -left-2 -top-4 text-[10px] text-red-600 font-handwriting rotate-[-15deg]">What??</span>
+                    </div>
+                    {[...Array(25)].map((_, i) => (
+                      <div key={`c2-b-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
+                    ))}
+                 </div>
+              </div>
+
+              {/* Floating Elements */}
+              <div className="absolute bottom-10 left-6 transform rotate-3">
+                 <div className="bg-yellow-200/50 p-2 text-[8px] font-mono border border-yellow-300 w-32 shadow-sm">
+                    Fig 2.1: Data correlation in non-linear vector space...
+                 </div>
+              </div>
+
+              {/* Creative: Confused Black Ant on the messy PDF */}
+              <div className="absolute -left-4 top-1/2 z-20 animate-wiggle">
+                 <AntMascot variant="black" className="w-12 h-12 rotate-[-90deg] drop-shadow-md" isMoving={true} />
+                 <div className="absolute -top-4 -left-2 text-2xl animate-pulse font-bold text-red-600">?</div>
+              </div>
+
+              {/* Spider crawling on the messy PDF */}
+              <div className="absolute top-4 right-4 z-20 animate-pulse-slow">
+                 <SpiderMascot variant="garden" className="w-10 h-10 rotate-[135deg] opacity-80" />
               </div>
             </div>
 
-            {/* Center Processor */}
-            <div className="relative z-20 flex flex-col items-center justify-center w-24 h-24 md:mx-4">
-               <div className="absolute inset-0 bg-violet-500/20 rounded-full animate-ping"></div>
-               <div className="relative w-16 h-16 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-full flex items-center justify-center text-white shadow-xl">
-                 <Sparkles size={24} className="animate-spin-slow" />
+            {/* Center Processor (OBSIDIAN ENGINE) */}
+            <div className="relative z-20 flex flex-col items-center justify-center w-32 h-32 md:mx-4 -my-8 md:my-0">
+               {/* Scanning Beam Animation */}
+               <div className="absolute w-[200px] h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent animate-[pulse_2s_infinite] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-45deg] opacity-0 md:opacity-100 z-0"></div>
+               
+               <div className="absolute inset-0 bg-stone-900/10 rounded-full animate-ping"></div>
+               <div className="relative w-20 h-20 bg-gradient-to-br from-stone-800 to-black rounded-full flex items-center justify-center text-amber-400 shadow-2xl border-2 border-stone-700">
+                 <BrainCircuit size={32} className="animate-pulse" />
                </div>
-               <div className="mt-4 font-mono text-xs font-bold text-violet-600 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm">AI Engine</div>
+               <div className="mt-4 px-3 py-1 bg-stone-900 text-stone-200 text-[10px] font-mono tracking-widest rounded-full border border-stone-700 shadow-lg z-20 uppercase">
+                 Neural Parse
+               </div>
             </div>
 
-            {/* Right Card: The Solution */}
-            <div className="relative w-full md:w-[400px] h-[500px] bg-surface border border-violet-200 shadow-2xl rounded-xl p-8 transform md:rotate-[3deg] md:-translate-x-12 z-10 hover:z-30 hover:rotate-0 transition-all duration-500 group">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
-              <div className="flex justify-between items-center mb-6">
-                <div className="text-xs text-violet-600 font-bold uppercase flex items-center gap-1"><Zap size={12}/> OpenParallax</div>
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full bg-violet-400"></div>
-                  <div className="w-2 h-2 rounded-full bg-gray-200"></div>
+            {/* Right Card: The Solution (Clean E-Reader) */}
+            <div className="relative w-full md:w-[400px] h-[550px] bg-white border border-gray-200 shadow-2xl rounded-2xl p-8 transform md:rotate-[3deg] md:-translate-x-12 z-10 hover:z-30 hover:rotate-0 transition-all duration-500 group overflow-hidden">
+              
+              {/* E-Reader UI Header */}
+              <div className="flex justify-between items-center mb-8 border-b border-gray-100 pb-4">
+                <div className="flex items-center gap-2">
+                   <div className="w-6 h-6 bg-amber-100 rounded-md flex items-center justify-center text-amber-700">
+                      <Zap size={14} />
+                   </div>
+                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">OpenParallax Reader</span>
                 </div>
+                <div className="text-[10px] text-gray-400 font-mono">100% Focus</div>
+              </div>
+
+              {/* Title & Meta */}
+              <div className="mb-6">
+                 <h3 className="font-serif text-2xl font-bold text-gray-900 leading-tight mb-2">The Future of AI Reasoning</h3>
+                 <p className="text-xs text-gray-500 italic">J. Doe et al. • 2024</p>
               </div>
               
+              {/* Clean Content */}
               <div className="space-y-4">
-                <div className="h-8 w-5/6 bg-textMain rounded opacity-90"></div>
-                <div className="flex gap-2 mb-4">
-                  <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-[10px] font-bold">CORE CONCEPT</span>
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px]">5 MIN READ</span>
+                <div className="flex items-start gap-3">
+                   <div className="w-1 h-12 bg-amber-400 rounded-full shrink-0 mt-1"></div>
+                   <p className="text-sm text-gray-600 leading-relaxed font-serif">
+                     <span className="bg-yellow-100 px-1 rounded">Core Concept:</span> Large language models demonstrate emergent reasoning capabilities when prompted with chain-of-thought methodologies.
+                   </p>
                 </div>
                 
-                <div className="space-y-3">
-                  <div className="h-3 w-full bg-gray-200 rounded"></div>
-                  <div className="h-3 w-full bg-gray-200 rounded"></div>
-                  <div className="h-3 w-4/5 bg-gray-200 rounded"></div>
-                </div>
+                <p className="text-sm text-gray-600 leading-relaxed font-serif">
+                  This study proposes a novel framework for evaluating step-by-step logic, reducing hallucination rates by <strong className="text-gray-900">45%</strong> compared to zero-shot baselines.
+                </p>
 
-                <div className="p-4 bg-violet-50 border border-violet-100 rounded-lg my-4">
-                  <div className="flex gap-2 items-center mb-2">
-                    <Brain size={14} className="text-violet-600"/>
-                    <span className="text-xs font-bold text-violet-800">AI Insight</span>
-                  </div>
-                  <div className="h-2 w-full bg-violet-200/50 rounded mb-1"></div>
-                  <div className="h-2 w-3/4 bg-violet-200/50 rounded"></div>
+                {/* Interactive Element: Highlight */}
+                <div className="mt-6 p-4 bg-stone-50 rounded-xl border border-stone-100 relative group/insight cursor-help">
+                   <div className="absolute -top-3 -right-3 bg-white p-1.5 rounded-full border border-stone-200 shadow-sm text-amber-500">
+                      <Highlighter size={14} />
+                   </div>
+                   <h4 className="text-xs font-bold text-stone-900 uppercase mb-1">Key Insight</h4>
+                   <p className="text-xs text-stone-600">
+                     "Self-correction is more effective than external verification."
+                   </p>
                 </div>
-                
-                <button className="w-full py-2 bg-textMain text-main text-xs font-bold rounded-lg mt-4 flex items-center justify-center gap-2 group-hover:bg-violet-600 transition-colors">
-                  Ask AI Mentor <ArrowRight size={12}/>
-                </button>
+              </div>
+
+              {/* Creative: Happy Fire Ant reading the clear text */}
+              <div className="absolute -right-6 bottom-20 z-20 animate-float">
+                 <AntMascot variant="fire" className="w-14 h-14 rotate-[-15deg] drop-shadow-md" isMoving={true} />
+                 <div className="absolute -top-4 -right-2 text-lg text-amber-500 animate-bounce">♥</div>
+              </div>
+
+              {/* Robot Spider assisting */}
+              <div className="absolute bottom-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                <SpiderMascot variant="robot" className="w-10 h-10 rotate-[10deg]" />
+              </div>
+
+              {/* Page Number */}
+              <div className="absolute bottom-4 right-8 text-[10px] text-gray-300 font-mono">
+                 Pg 1 / 1
               </div>
             </div>
           </div>
@@ -271,19 +374,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, theme }) => {
                 icon: <BookOpen size={32} />,
                 title: "Kindle-Style Reader",
                 desc: "No more two-column PDFs. We reformat every paper into a clean, single-column reading experience designed for focus.",
-                color: "violet"
+                color: "violet",
+                ant: <AntMascot variant="green" className="absolute bottom-4 right-4 w-8 h-8 opacity-20 group-hover:opacity-100 group-hover:scale-110 transition-all" isMoving={false} />
               },
               {
                 icon: <Brain size={32} />,
                 title: "Cognitive Rewrite",
                 desc: "Our AI translates dense jargon into plain English concepts, highlighting methodology and core findings automatically.",
-                color: "fuchsia"
+                color: "fuchsia",
+                ant: <AntMascot variant="purple" className="absolute top-4 right-4 w-8 h-8 opacity-20 group-hover:opacity-100 group-hover:rotate-12 transition-all" isMoving={false} />
               },
               {
                 icon: <Sprout size={32} />,
                 title: "Knowledge Tree",
                 desc: "Visualize your growth. Earn ranks from 'Curious Observer' to 'God of Knowledge' as you read more papers.",
-                color: "indigo"
+                color: "indigo",
+                ant: <AntMascot variant="weaver" className="absolute bottom-4 left-4 w-8 h-8 opacity-20 group-hover:opacity-100 group-hover:-rotate-12 transition-all" isMoving={false} />
               }
             ].map((feature, i) => (
               <div 
@@ -293,6 +399,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, theme }) => {
                 {/* Hover Gradient Background */}
                 <div className={`absolute inset-0 bg-gradient-to-br from-${feature.color}-500/5 to-${feature.color}-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
                 
+                {/* Creative: Ant per card */}
+                {feature.ant}
+
                 <div className={`relative w-16 h-16 rounded-2xl bg-${feature.color}-100 dark:bg-${feature.color}-900/20 text-${feature.color}-600 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500`}>
                   {feature.icon}
                 </div>
@@ -369,6 +478,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, theme }) => {
                  <path d="M 350,50 Q 200,300 50,300" stroke="currentColor" strokeWidth="2" fill="none" className="text-fuchsia-500" />
               </svg>
 
+              {/* Creative: Tarantula guarding the web */}
+              <div className="absolute bottom-4 right-4 z-10">
+                 <SpiderMascot variant="tarantula" className="w-14 h-14 rotate-[-45deg] drop-shadow-lg" />
+              </div>
+
+              {/* Creative: Ant interacting with the graph */}
+              <div className="absolute bottom-1/4 left-1/4 animate-float opacity-100">
+                <AntMascot variant="red" className="w-10 h-10 rotate-45 drop-shadow-md" isMoving={true} />
+              </div>
+              <div className="absolute top-1/4 right-1/4 animate-float-delayed opacity-80">
+                <AntMascot variant="black" className="w-8 h-8 rotate-[-15deg] drop-shadow-md" isMoving={true} />
+              </div>
+
               <div className="absolute bottom-8 left-8 right-8 bg-white/80 backdrop-blur-md p-4 rounded-xl border border-violet-100 shadow-lg">
                  <div className="flex gap-3 items-center">
                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
@@ -386,6 +508,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, theme }) => {
           <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
             <path d="M0 100 C 20 0 50 0 100 100 Z" fill="currentColor" />
           </svg>
+        </div>
+
+        {/* Creative: Marching Ant Trail along the bottom - NOW MULTI COLORED */}
+        <div className="absolute bottom-4 left-0 w-full overflow-hidden opacity-30 pointer-events-none">
+          <div className="flex gap-16 animate-scroll w-[200%]">
+             {[...Array(20)].map((_, i) => (
+                <div key={i} className="flex items-center gap-1">
+                   <AntMascot variant={i % 5 === 0 ? 'green' : i % 4 === 0 ? 'purple' : i % 3 === 0 ? 'black' : 'red'} className="w-6 h-6 md:w-8 md:h-8 rotate-90" isMoving={true} />
+                   {/* Carrying a "bit" of knowledge */}
+                   <div className="w-2 h-2 bg-white rounded-full"></div>
+                </div>
+             ))}
+          </div>
         </div>
 
         <div className="relative z-10 max-w-3xl mx-auto space-y-8">
