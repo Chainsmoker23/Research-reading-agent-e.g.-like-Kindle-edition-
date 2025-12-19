@@ -3,8 +3,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { AppView, Paper, Theme, SearchFilters, ReadHistoryItem } from './types';
 import { generatePaperExplanation } from './services/geminiService';
 import { searchPapersFast } from './services/parallelSearchService';
-import { supabase } from './backend/supabaseClient';
-import { saveReadPaper, getReadingHistory } from './backend/dataService';
+import { getCurrentUser, signOut } from './backend/authService';
+import { saveReadPaper, getReadingHistory, getUserProfile, UserProfile } from './backend/dataService';
 import SearchHeader from './components/SearchHeader';
 import SearchBar from './components/SearchBar';
 import PaperList from './components/PaperList';
@@ -28,34 +28,27 @@ const App: React.FC = () => {
   
   // Auth & Data State
   const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [readHistory, setReadHistory] = useState<ReadHistoryItem[]>([]);
   const [activeFilters, setActiveFilters] = useState<SearchFilters>({});
 
-  // 1. Check for User Session on Mount
+  // Initialize Session from Local Storage
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchHistory(session.user.id);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchHistory(session.user.id);
-      } else {
-        setReadHistory([]); // Clear history on logout
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    const activeUser = getCurrentUser();
+    if (activeUser) {
+      setUser(activeUser);
+      syncUserData();
+    }
   }, []);
 
-  // 2. Fetch History Helper
-  const fetchHistory = async (userId: string) => {
-    const history = await getReadingHistory(userId);
+  // Sync User Profile and History
+  const syncUserData = async () => {
+    const [history, userProfile] = await Promise.all([
+      getReadingHistory(),
+      getUserProfile()
+    ]);
     setReadHistory(history);
+    setProfile(userProfile);
   };
 
   const handleSearch = useCallback(async (query: string, filters: SearchFilters) => {
@@ -63,15 +56,13 @@ const App: React.FC = () => {
     setSearchQuery(query);
     setActiveFilters(filters);
     setView(AppView.LIST);
-    setPapers([]); // Clear previous results immediately
+    setPapers([]);
     
     try {
-      // Use the new parallel fast search service
       const results = await searchPapersFast(query, filters);
       setPapers(results);
     } catch (error) {
       console.error(error);
-      // Could add error toast here
     } finally {
       setIsSearching(false);
     }
@@ -90,7 +81,7 @@ const App: React.FC = () => {
       setPaperContent(content);
     } catch (error) {
       console.error(error);
-      setPaperContent("Failed to generate content. Please try again.");
+      setPaperContent("Failed to generate content.");
     } finally {
       setIsLoadingContent(false);
     }
@@ -118,35 +109,34 @@ const App: React.FC = () => {
     setView(AppView.AUTH);
   }, []);
 
-  const handleMarkAsRead = useCallback(async (paper: Paper) => {
-    // If logged in, save to Supabase
-    if (user) {
-      // Optimistic Update
-      const tempId = `temp-${Date.now()}`;
-      setReadHistory(prev => [
-        { id: tempId, paper, timestamp: Date.now() },
-        ...prev
-      ]);
+  const handleAuthSuccess = useCallback(() => {
+    const activeUser = getCurrentUser();
+    setUser(activeUser);
+    syncUserData();
+    setView(AppView.SEARCH);
+  }, []);
 
-      const savedItem = await saveReadPaper(user.id, paper);
-      
-      // Replace temp item with real item from DB if successful
+  const handleLogout = useCallback(() => {
+    signOut();
+    setUser(null);
+    setProfile(null);
+    setReadHistory([]);
+    setView(AppView.LANDING);
+  }, []);
+
+  const handleMarkAsRead = useCallback(async (paper: Paper) => {
+    if (user) {
+      if (readHistory.some(h => h.paper.id === paper.id || h.paper.title === paper.title)) return;
+
+      const savedItem = await saveReadPaper(paper);
       if (savedItem) {
-        setReadHistory(prev => prev.map(item => item.id === tempId ? savedItem : item));
+        setReadHistory(prev => [savedItem, ...prev]);
+        const updatedProfile = await getUserProfile();
+        setProfile(updatedProfile);
       }
     } else {
-      // Fallback for guest (local state only)
-      if (!readHistory.some(item => item.paper.id === paper.id)) {
-        setReadHistory(prev => [
-          {
-            id: `history-${Date.now()}`,
-            paper: paper,
-            timestamp: Date.now()
-          },
-          ...prev
-        ]);
-        alert("Sign in to save your knowledge tree permanently!");
-      }
+      alert("Sign in to track your reading history and score Knowledge Points!");
+      setView(AppView.AUTH);
     }
   }, [readHistory, user]);
 
@@ -166,7 +156,6 @@ const App: React.FC = () => {
 
   const isReader = view === AppView.READER;
 
-  // Layout calculations
   const appLayoutClass = isReader 
     ? 'h-screen overflow-hidden' 
     : 'min-h-screen overflow-x-hidden';
@@ -176,8 +165,7 @@ const App: React.FC = () => {
     : 'flex-1 relative flex flex-col';
 
   return (
-    <div className={`flex flex-col bg-main selection:bg-purple-200 transition-colors duration-300 theme-${theme} ${appLayoutClass}`}>
-      {/* Universal Search Header */}
+    <div className={`flex flex-col bg-main transition-colors duration-300 theme-${theme} ${appLayoutClass}`}>
       {view !== AppView.AUTH && (
         <SearchHeader 
           onSearch={handleSearch} 
@@ -192,20 +180,14 @@ const App: React.FC = () => {
           isLandingPage={view === AppView.LANDING}
           user={user}
           onLoginClick={handleLoginClick}
+          onLogout={handleLogout}
         />
       )}
 
-      {/* Main Content Area */}
       <main className={mainClass}>
+        {view === AppView.LANDING && <LandingPage onStart={handleStart} theme={theme} />}
+        {view === AppView.AUTH && <AuthPage onBack={() => setView(AppView.LANDING)} onSuccess={handleAuthSuccess} />}
         
-        {view === AppView.LANDING && (
-          <LandingPage onStart={handleStart} theme={theme} />
-        )}
-
-        {view === AppView.AUTH && (
-          <AuthPage onBack={() => setView(AppView.LANDING)} />
-        )}
-
         {view === AppView.SEARCH && (
           <div className="flex flex-col items-center justify-center min-h-[calc(100vh-140px)] px-6 text-center animate-fade-in py-12">
              <h2 className="font-serif text-4xl md:text-6xl font-bold text-textMain mb-6 tracking-tight leading-tight">
@@ -214,26 +196,27 @@ const App: React.FC = () => {
              <div className="max-w-3xl space-y-4 mb-12">
                <p className="text-lg md:text-xl text-textMuted leading-relaxed">
                  OpenParallax bridges the gap between complex data and clear understanding. 
-                 Search sources like <strong>Nature</strong>, <strong>IEEE</strong>, and <strong>arXiv</strong> instantly.
                </p>
+               {profile && (
+                 <div className="mt-4 p-4 bg-violet-50 border border-violet-100 rounded-2xl flex items-center justify-center gap-4 animate-fade-in-up shadow-sm">
+                    <div className="text-left">
+                      <p className="text-[10px] text-violet-600 font-bold uppercase tracking-wider">Your Knowledge Points</p>
+                      <p className="text-2xl font-serif font-black text-violet-900">{profile.score} KP</p>
+                    </div>
+                    <div className="h-10 w-[1px] bg-violet-200"></div>
+                    <div className="text-left">
+                      <p className="text-[10px] text-violet-600 font-bold uppercase tracking-wider">Papers Mastered</p>
+                      <p className="text-2xl font-serif font-black text-violet-900">{readHistory.length}</p>
+                    </div>
+                 </div>
+               )}
                {!user && (
-                 <button onClick={handleLoginClick} className="text-sm text-amber-600 font-medium bg-amber-50 inline-block px-4 py-2 rounded-full border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer">
-                   Tip: Sign in to track your reading history and earn ranks!
+                 <button onClick={handleLoginClick} className="text-xs text-amber-600 font-bold bg-amber-50 inline-block px-4 py-2 rounded-full border border-amber-200 hover:bg-amber-100 transition-colors uppercase tracking-widest">
+                   Join the Rank of Scholars
                  </button>
                )}
              </div>
-             
-             {/* Center Search Bar */}
-             <SearchBar 
-               variant="centered" 
-               onSearch={handleSearch}
-             />
-             
-             <div className="mt-8 flex gap-4 text-sm text-textMuted">
-               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">arXiv</span>
-               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">Nature</span>
-               <span className="px-3 py-1 bg-surface border border-borderSkin rounded-full">IEEE</span>
-             </div>
+             <SearchBar variant="centered" onSearch={handleSearch} />
           </div>
         )}
 
@@ -241,19 +224,9 @@ const App: React.FC = () => {
           isSearching ? (
             <div className="flex flex-col items-center justify-center pt-32 animate-fade-in">
               <div className="w-12 h-12 border-4 border-borderSkin border-t-textMain rounded-full animate-spin mb-4"></div>
-              <p className="font-serif text-xl text-textMuted animate-pulse">Searching for research papers...</p>
-              {activeFilters.source && <p className="text-sm text-textMuted mt-2">Source: {activeFilters.source}</p>}
+              <p className="font-serif text-xl text-textMuted">Searching for research papers...</p>
             </div>
-          ) : (
-             papers.length > 0 ? (
-               <PaperList papers={papers} onSelect={handleSelectPaper} />
-             ) : (
-               <div className="flex flex-col items-center justify-center pt-32 text-textMuted animate-fade-in">
-                  <p>No papers found. Try a different search term or adjust your filters.</p>
-                  <button onClick={() => setView(AppView.SEARCH)} className="mt-4 text-textMain underline">Go back home</button>
-               </div>
-             )
-          )
+          ) : <PaperList papers={papers} onSelect={handleSelectPaper} />
         )}
 
         {view === AppView.READER && selectedPaper && (
@@ -268,11 +241,7 @@ const App: React.FC = () => {
               onMarkAsRead={handleMarkAsRead}
               isRead={isCurrentPaperRead}
             />
-            <ChatPanel 
-              paper={selectedPaper}
-              isOpen={isChatOpen}
-              onClose={() => setIsChatOpen(false)}
-            />
+            <ChatPanel paper={selectedPaper} isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
           </>
         )}
 

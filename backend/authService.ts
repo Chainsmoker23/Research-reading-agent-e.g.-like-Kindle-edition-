@@ -1,33 +1,44 @@
 
-import { supabase } from './supabaseClient';
+const API_BASE = 'http://localhost:3001/api/auth';
 
-export const signInWithGoogle = async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: window.location.origin
-    }
+export const registerUser = async (email: string, password: string) => {
+  const response = await fetch(`${API_BASE}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
   });
-  if (error) throw error;
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Registration failed');
+  
+  localStorage.setItem('px_token', data.token);
+  localStorage.setItem('px_user', JSON.stringify(data.user));
+  return data;
 };
 
-// Simple email login (Magic Link)
-export const signInWithEmail = async (email: string) => {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: window.location.origin,
-    },
+export const loginUser = async (email: string, password: string) => {
+  const response = await fetch(`${API_BASE}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
   });
-  return { error };
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Login failed');
+  
+  localStorage.setItem('px_token', data.token);
+  localStorage.setItem('px_user', JSON.stringify(data.user));
+  return data;
 };
 
-export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+export const signOut = () => {
+  localStorage.removeItem('px_token');
+  localStorage.removeItem('px_user');
 };
 
-export const getCurrentUser = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.user || null;
+export const getCurrentUser = () => {
+  const user = localStorage.getItem('px_user');
+  return user ? JSON.parse(user) : null;
+};
+
+export const getAuthToken = () => {
+  return localStorage.getItem('px_token');
 };
