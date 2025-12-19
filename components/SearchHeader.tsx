@@ -1,6 +1,6 @@
 import React from 'react';
 import { Theme, SearchFilters } from '../types';
-import { Moon, Sun, Coffee } from 'lucide-react';
+import { Moon, Sun, Coffee, Sprout } from 'lucide-react';
 import SearchBar from './SearchBar';
 
 interface SearchHeaderProps {
@@ -11,6 +11,7 @@ interface SearchHeaderProps {
   currentTheme: Theme;
   onThemeChange: (theme: Theme) => void;
   showSearchInput: boolean;
+  onViewTree: () => void;
 }
 
 const SearchHeader: React.FC<SearchHeaderProps> = ({ 
@@ -20,7 +21,8 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
   onGoHome,
   currentTheme,
   onThemeChange,
-  showSearchInput
+  showSearchInput,
+  onViewTree
 }) => {
 
   return (
@@ -47,28 +49,39 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
            />
         </div>
 
-        <div className="flex items-center gap-1 bg-surface border border-borderSkin rounded-full p-1 shadow-sm shrink-0">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => onThemeChange('sepia')}
-            className={`p-1.5 rounded-full transition-all ${currentTheme === 'sepia' ? 'bg-amber-200 text-stone-900 shadow-sm' : 'text-textMuted hover:bg-main'}`}
-            title="Sepia Mode"
+            onClick={onViewTree}
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-emerald-50 hover:border-emerald-200 transition-colors text-sm font-medium"
+            title="My Knowledge Tree"
           >
-            <Coffee size={16} />
+            <Sprout size={16} className="text-emerald-600"/>
+            <span>My Tree</span>
           </button>
-          <button
-            onClick={() => onThemeChange('light')}
-            className={`p-1.5 rounded-full transition-all ${currentTheme === 'light' ? 'bg-stone-200 text-stone-900 shadow-sm' : 'text-textMuted hover:bg-main'}`}
-            title="Light Mode"
-          >
-            <Sun size={16} />
-          </button>
-          <button
-            onClick={() => onThemeChange('dark')}
-            className={`p-1.5 rounded-full transition-all ${currentTheme === 'dark' ? 'bg-stone-700 text-stone-100 shadow-sm' : 'text-textMuted hover:bg-main'}`}
-            title="Dark Mode"
-          >
-            <Moon size={16} />
-          </button>
+
+          <div className="flex items-center gap-1 bg-surface border border-borderSkin rounded-full p-1 shadow-sm shrink-0">
+            <button
+              onClick={() => onThemeChange('sepia')}
+              className={`p-1.5 rounded-full transition-all ${currentTheme === 'sepia' ? 'bg-amber-200 text-stone-900 shadow-sm' : 'text-textMuted hover:bg-main'}`}
+              title="Sepia Mode"
+            >
+              <Coffee size={16} />
+            </button>
+            <button
+              onClick={() => onThemeChange('light')}
+              className={`p-1.5 rounded-full transition-all ${currentTheme === 'light' ? 'bg-stone-200 text-stone-900 shadow-sm' : 'text-textMuted hover:bg-main'}`}
+              title="Light Mode"
+            >
+              <Sun size={16} />
+            </button>
+            <button
+              onClick={() => onThemeChange('dark')}
+              className={`p-1.5 rounded-full transition-all ${currentTheme === 'dark' ? 'bg-stone-700 text-stone-100 shadow-sm' : 'text-textMuted hover:bg-main'}`}
+              title="Dark Mode"
+            >
+              <Moon size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </header>

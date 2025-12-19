@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { AppView, Paper, Theme, SearchFilters } from './types';
+import { AppView, Paper, Theme, SearchFilters, ReadHistoryItem } from './types';
 import { searchPapers, generatePaperExplanation } from './services/geminiService';
 import SearchHeader from './components/SearchHeader';
 import SearchBar from './components/SearchBar';
 import PaperList from './components/PaperList';
 import ReaderView from './components/ReaderView';
 import ChatPanel from './components/ChatPanel';
+import KnowledgeTree from './components/KnowledgeTree';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.SEARCH);
@@ -17,6 +18,9 @@ const App: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<Theme>('sepia');
+  
+  // History state
+  const [readHistory, setReadHistory] = useState<ReadHistoryItem[]>([]);
 
   // New state for filters
   const [activeFilters, setActiveFilters] = useState<SearchFilters>({});
@@ -42,6 +46,9 @@ const App: React.FC = () => {
   const handleSelectPaper = useCallback(async (paper: Paper) => {
     setSelectedPaper(paper);
     setView(AppView.READER);
+    
+    // Only generate content if we haven't already generated it for this specific session interaction
+    // Or simpler: always regenerate or check a cache. For now, basic behavior:
     setPaperContent(null);
     setIsLoadingContent(true);
     setIsChatOpen(false);
@@ -71,6 +78,29 @@ const App: React.FC = () => {
     setActiveFilters({});
   }, []);
 
+  const handleMarkAsRead = useCallback((paper: Paper) => {
+    // Check if already in history
+    if (!readHistory.some(item => item.paper.id === paper.id)) {
+      setReadHistory(prev => [
+        {
+          id: `history-${Date.now()}`,
+          paper: paper,
+          timestamp: Date.now()
+        },
+        ...prev
+      ]);
+    }
+  }, [readHistory]);
+
+  const handleViewTree = useCallback(() => {
+    setView(AppView.TREE);
+    setIsChatOpen(false);
+  }, []);
+
+  const isCurrentPaperRead = selectedPaper 
+    ? readHistory.some(item => item.paper.title === selectedPaper.title) // Use title as ID might vary in search results vs history
+    : false;
+
   return (
     <div className={`min-h-screen flex flex-col bg-main selection:bg-amber-200 transition-colors duration-300 theme-${theme}`}>
       {/* Universal Search Header */}
@@ -82,6 +112,7 @@ const App: React.FC = () => {
         currentTheme={theme}
         onThemeChange={setTheme}
         showSearchInput={view !== AppView.SEARCH}
+        onViewTree={handleViewTree}
       />
 
       {/* Main Content Area */}
@@ -143,6 +174,8 @@ const App: React.FC = () => {
               onBack={handleBackToResults}
               onToggleChat={() => setIsChatOpen(!isChatOpen)}
               isChatOpen={isChatOpen}
+              onMarkAsRead={handleMarkAsRead}
+              isRead={isCurrentPaperRead}
             />
             <ChatPanel 
               paper={selectedPaper}
@@ -150,6 +183,14 @@ const App: React.FC = () => {
               onClose={() => setIsChatOpen(false)}
             />
           </>
+        )}
+
+        {view === AppView.TREE && (
+          <KnowledgeTree 
+            history={readHistory} 
+            onSelectPaper={handleSelectPaper}
+            onGoHome={handleGoHome}
+          />
         )}
       </main>
     </div>

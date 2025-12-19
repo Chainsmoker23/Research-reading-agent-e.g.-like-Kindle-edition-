@@ -19,6 +19,7 @@ export enum AppView {
   SEARCH = 'SEARCH',
   LIST = 'LIST',
   READER = 'READER',
+  TREE = 'TREE',
 }
 
 export interface ReadingState {
@@ -33,4 +34,10 @@ export interface SearchFilters {
   startYear?: string;
   endYear?: string;
   source?: string;
+}
+
+export interface ReadHistoryItem {
+  id: string;
+  paper: Paper;
+  timestamp: number;
 }

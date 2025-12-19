@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Paper } from '../types';
-import { ArrowLeft, MessageSquare, Loader2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Loader2, CheckCircle, BookOpenCheck } from 'lucide-react';
 
 interface ReaderViewProps {
   paper: Paper;
@@ -9,9 +9,20 @@ interface ReaderViewProps {
   onBack: () => void;
   onToggleChat: () => void;
   isChatOpen: boolean;
+  onMarkAsRead: (paper: Paper) => void;
+  isRead: boolean;
 }
 
-const ReaderView: React.FC<ReaderViewProps> = ({ paper, content, isLoading, onBack, onToggleChat, isChatOpen }) => {
+const ReaderView: React.FC<ReaderViewProps> = ({ 
+  paper, 
+  content, 
+  isLoading, 
+  onBack, 
+  onToggleChat, 
+  isChatOpen,
+  onMarkAsRead,
+  isRead
+}) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [loadingMessage, setLoadingMessage] = useState('Initializing...');
 
@@ -167,7 +178,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({ paper, content, isLoading, onBa
                </div>
              </div>
           ) : content ? (
-            <article className="animate-fade-in">
+            <article className="animate-fade-in pb-10">
               <div className="mb-12 text-center border-b-2 border-textMain pb-8">
                 <h1 className="font-serif text-3xl md:text-4xl font-bold text-textMain mb-4 leading-tight">
                   {paper.title}
@@ -182,10 +193,38 @@ const ReaderView: React.FC<ReaderViewProps> = ({ paper, content, isLoading, onBa
               <div className="prose prose-stone prose-lg max-w-none text-textMain">
                 {renderContent(content)}
               </div>
-              <div className="mt-16 pt-8 border-t border-borderSkin text-center">
-                <p className="text-textMuted text-sm">
-                  End of simplified summary.
+              
+              {/* Mark as Completed Button */}
+              <div className="mt-16 pt-12 border-t border-borderSkin flex flex-col items-center gap-4">
+                <p className="text-textMuted text-sm italic">
+                  Have you finished reading this paper?
                 </p>
+                <button
+                  onClick={() => onMarkAsRead(paper)}
+                  disabled={isRead}
+                  className={`group relative flex items-center gap-3 px-8 py-4 rounded-full transition-all duration-300 transform hover:scale-105 shadow-md ${
+                    isRead 
+                      ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-200 cursor-default' 
+                      : 'bg-textMain text-main hover:bg-amber-600 border-2 border-transparent'
+                  }`}
+                >
+                  {isRead ? (
+                    <>
+                      <CheckCircle size={24} />
+                      <span className="font-bold text-lg">Read & Added to Tree</span>
+                    </>
+                  ) : (
+                    <>
+                      <BookOpenCheck size={24} />
+                      <span className="font-bold text-lg">Mark as Completed</span>
+                    </>
+                  )}
+                </button>
+                {isRead && (
+                  <p className="text-emerald-600 text-sm animate-fade-in-up">
+                    Added to your Knowledge Tree
+                  </p>
+                )}
               </div>
             </article>
           ) : (
