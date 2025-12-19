@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [theme, setTheme] = useState<Theme>('sepia');
+  const [theme, setTheme] = useState<Theme>('light');
   
   // History state
   const [readHistory, setReadHistory] = useState<ReadHistoryItem[]>([]);
@@ -120,7 +120,7 @@ const App: React.FC = () => {
     : 'min-h-screen';
 
   return (
-    <div className={`flex flex-col bg-main selection:bg-amber-200 transition-colors duration-300 theme-${theme} ${appLayoutClass}`}>
+    <div className={`flex flex-col bg-main selection:bg-purple-200 transition-colors duration-300 theme-${theme} ${appLayoutClass}`}>
       {/* Universal Search Header */}
       <SearchHeader 
         onSearch={handleSearch} 

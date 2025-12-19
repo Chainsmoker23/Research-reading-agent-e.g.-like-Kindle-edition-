@@ -17,6 +17,12 @@
               textMain: 'var(--text-main)',
               textMuted: 'var(--text-muted)',
               borderSkin: 'var(--border-skin)',
+            },
+            animation: {
+              'scroll': 'scroll 40s linear infinite',
+              'fade-in': 'fadeIn 0.5s ease-out forwards',
+              'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             }
           }
         }
@@ -44,12 +50,12 @@
       }
 
       .theme-light {
-        --bg-main: #f3f4f6; /* gray-100 */
-        --bg-surface: #ffffff;
-        --bg-surface-hover: #f9fafb;
-        --text-main: #111827; /* gray-900 */
-        --text-muted: #6b7280; /* gray-500 */
-        --border-skin: #e5e7eb; /* gray-200 */
+        --bg-main: #ffffff; /* Pure white */
+        --bg-surface: #fafafa; /* Very light gray for contrast elements */
+        --bg-surface-hover: #f3f4f6;
+        --text-main: #0f172a; /* Slate 900 */
+        --text-muted: #64748b; /* Slate 500 */
+        --border-skin: #e2e8f0; /* Slate 200 */
       }
 
       body {
@@ -83,11 +89,17 @@
         from { opacity: 0; transform: translateY(20px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      .animate-fade-in {
-        animation: fadeIn 0.5s ease-out forwards;
+      @keyframes scroll {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
       }
-      .animate-fade-in-up {
-        animation: fadeInUp 0.5s ease-out forwards;
+      
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
       }
     </style>
   <script type="importmap">
@@ -102,7 +114,7 @@
 }
 </script>
 </head>
-  <body class="bg-main text-textMain antialiased selection:bg-amber-200 selection:text-stone-900 transition-colors duration-300">
+  <body class="bg-main text-textMain antialiased selection:bg-purple-200 selection:text-purple-900 transition-colors duration-300">
     <div id="root"></div>
   </body>
 </html>
