@@ -23,6 +23,7 @@ export enum AppView {
   READER = 'READER',
   TREE = 'TREE',
   BADGES = 'BADGES',
+  AUTH = 'AUTH',
 }
 
 export interface ReadingState {

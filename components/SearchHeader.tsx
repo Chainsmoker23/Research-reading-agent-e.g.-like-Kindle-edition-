@@ -1,7 +1,9 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Theme, SearchFilters } from '../types';
-import { Moon, Sun, Coffee, Sprout, Trophy } from 'lucide-react';
+import { Moon, Sun, Coffee, Sprout, Trophy, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import SearchBar from './SearchBar';
+import { signOut } from '../backend/authService';
 
 interface SearchHeaderProps {
   onSearch: (query: string, filters: SearchFilters) => void;
@@ -14,6 +16,8 @@ interface SearchHeaderProps {
   onViewTree: () => void;
   onViewBadges: () => void;
   isLandingPage?: boolean;
+  user?: any;
+  onLoginClick: () => void; // New prop
 }
 
 const SearchHeader: React.FC<SearchHeaderProps> = ({ 
@@ -26,8 +30,19 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
   showSearchInput,
   onViewTree,
   onViewBadges,
-  isLandingPage = false
+  isLandingPage = false,
+  user,
+  onLoginClick
 }) => {
+  
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      window.location.reload(); 
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <header className={`sticky top-0 z-50 transition-colors duration-300 ${isLandingPage ? 'bg-transparent absolute w-full border-none' : 'bg-main/90 backdrop-blur-md border-b border-borderSkin'} px-4 md:px-6 py-3 md:py-4`}>
@@ -61,31 +76,29 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
           {/* Navigation Buttons - Hidden on Landing Page */}
           {!isLandingPage && (
             <>
-              {/* Achievements Button - Icon on Mobile, Text on Desktop */}
+              {/* Achievements Button */}
               <button
                 onClick={onViewBadges}
                 className="flex items-center gap-2 px-2.5 py-2 md:px-3 md:py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-amber-50 hover:border-amber-200 transition-colors text-sm font-medium shadow-sm"
                 title="Achievements"
-                aria-label="View Achievements"
               >
                 <Trophy size={18} className="text-amber-600"/>
                 <span className="hidden md:inline">Achievements</span>
               </button>
 
-              {/* Tree Button - Icon on Mobile, Text on Desktop */}
+              {/* Tree Button */}
               <button
                 onClick={onViewTree}
                 className="flex items-center gap-2 px-2.5 py-2 md:px-3 md:py-1.5 rounded-full bg-surface border border-borderSkin text-textMain hover:bg-emerald-50 hover:border-emerald-200 transition-colors text-sm font-medium shadow-sm"
                 title="My Knowledge Tree"
-                aria-label="View Knowledge Tree"
               >
                 <Sprout size={18} className="text-emerald-600"/>
-                <span className="hidden md:inline">My Tree</span>
+                <span className="hidden md:inline">Tree</span>
               </button>
             </>
           )}
 
-          {/* Theme Toggle - Collapsed on very small screens if needed, but fits mostly */}
+          {/* Theme Toggle */}
           <div className={`hidden sm:flex items-center gap-1 rounded-full p-1 shrink-0 ${isLandingPage ? 'bg-transparent' : 'bg-surface border border-borderSkin shadow-sm'}`}>
             <button
               onClick={() => onThemeChange('sepia')}
@@ -110,17 +123,29 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
             </button>
           </div>
           
-          {/* Mobile Theme Toggle (Simple Cycler) - Visible only on XS screens */}
-          <button 
-             onClick={() => {
-               if (currentTheme === 'sepia') onThemeChange('light');
-               else if (currentTheme === 'light') onThemeChange('dark');
-               else onThemeChange('sepia');
-             }}
-             className={`sm:hidden p-2 rounded-full border text-textMain shadow-sm ${isLandingPage ? 'bg-main/50 border-transparent' : 'bg-surface border-borderSkin'}`}
-          >
-            {currentTheme === 'sepia' ? <Coffee size={18} /> : currentTheme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+          {/* Auth Button */}
+          {user ? (
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center text-violet-700 font-bold" title={user.email}>
+                {user.email?.charAt(0).toUpperCase()}
+              </div>
+              <button 
+                onClick={handleLogout}
+                className="p-2 text-textMuted hover:text-red-500 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onLoginClick}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all shadow-sm ${isLandingPage ? 'bg-white text-black hover:bg-gray-100' : 'bg-textMain text-main hover:opacity-90'}`}
+            >
+              <LogIn size={16} />
+              <span className="hidden sm:inline">Sign In / Register</span>
+            </button>
+          )}
 
         </div>
       </div>

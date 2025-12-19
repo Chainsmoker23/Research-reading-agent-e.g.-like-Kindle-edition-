@@ -27,6 +27,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   const [loadingMessage, setLoadingMessage] = useState('Initializing...');
 
   useEffect(() => {
+    // Reset scroll when content changes
     if (content && contentRef.current) {
       contentRef.current.scrollTop = 0;
     }
@@ -148,7 +149,10 @@ const ReaderView: React.FC<ReaderViewProps> = ({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-main p-6 md:p-12 lg:px-24 scroll-smooth">
+      <div 
+        ref={contentRef}
+        className="flex-1 overflow-y-auto bg-main p-6 md:p-12 lg:px-24 scroll-smooth"
+      >
         <div className="max-w-3xl mx-auto bg-surface shadow-sm border border-borderSkin rounded-lg p-8 md:p-16 min-h-full">
           {isLoading ? (
              <div className="flex flex-col items-center justify-center py-24 space-y-8 animate-fade-in">

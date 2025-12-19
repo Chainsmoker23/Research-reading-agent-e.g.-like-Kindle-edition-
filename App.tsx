@@ -1,6 +1,10 @@
-import React, { useState, useCallback } from 'react';
+
+import React, { useState, useCallback, useEffect } from 'react';
 import { AppView, Paper, Theme, SearchFilters, ReadHistoryItem } from './types';
-import { searchPapers, generatePaperExplanation } from './services/geminiService';
+import { generatePaperExplanation } from './services/geminiService';
+import { searchPapersFast } from './services/parallelSearchService';
+import { supabase } from './backend/supabaseClient';
+import { saveReadPaper, getReadingHistory } from './backend/dataService';
 import SearchHeader from './components/SearchHeader';
 import SearchBar from './components/SearchBar';
 import PaperList from './components/PaperList';
@@ -9,6 +13,7 @@ import ChatPanel from './components/ChatPanel';
 import KnowledgeTree from './components/KnowledgeTree';
 import BadgeGallery from './components/BadgeGallery';
 import LandingPage from './components/LandingPage';
+import AuthPage from './components/AuthPage';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
@@ -21,11 +26,37 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<Theme>('light');
   
-  // History state
+  // Auth & Data State
+  const [user, setUser] = useState<any>(null);
   const [readHistory, setReadHistory] = useState<ReadHistoryItem[]>([]);
-
-  // New state for filters
   const [activeFilters, setActiveFilters] = useState<SearchFilters>({});
+
+  // 1. Check for User Session on Mount
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchHistory(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchHistory(session.user.id);
+      } else {
+        setReadHistory([]); // Clear history on logout
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 2. Fetch History Helper
+  const fetchHistory = async (userId: string) => {
+    const history = await getReadingHistory(userId);
+    setReadHistory(history);
+  };
 
   const handleSearch = useCallback(async (query: string, filters: SearchFilters) => {
     setIsSearching(true);
@@ -35,7 +66,8 @@ const App: React.FC = () => {
     setPapers([]); // Clear previous results immediately
     
     try {
-      const results = await searchPapers(query, filters);
+      // Use the new parallel fast search service
+      const results = await searchPapersFast(query, filters);
       setPapers(results);
     } catch (error) {
       console.error(error);
@@ -49,8 +81,6 @@ const App: React.FC = () => {
     setSelectedPaper(paper);
     setView(AppView.READER);
     
-    // Only generate content if we haven't already generated it for this specific session interaction
-    // Or simpler: always regenerate or check a cache. For now, basic behavior:
     setPaperContent(null);
     setIsLoadingContent(true);
     setIsChatOpen(false);
@@ -84,19 +114,41 @@ const App: React.FC = () => {
     setView(AppView.SEARCH);
   }, []);
 
-  const handleMarkAsRead = useCallback((paper: Paper) => {
-    // Check if already in history
-    if (!readHistory.some(item => item.paper.id === paper.id)) {
+  const handleLoginClick = useCallback(() => {
+    setView(AppView.AUTH);
+  }, []);
+
+  const handleMarkAsRead = useCallback(async (paper: Paper) => {
+    // If logged in, save to Supabase
+    if (user) {
+      // Optimistic Update
+      const tempId = `temp-${Date.now()}`;
       setReadHistory(prev => [
-        {
-          id: `history-${Date.now()}`,
-          paper: paper,
-          timestamp: Date.now()
-        },
+        { id: tempId, paper, timestamp: Date.now() },
         ...prev
       ]);
+
+      const savedItem = await saveReadPaper(user.id, paper);
+      
+      // Replace temp item with real item from DB if successful
+      if (savedItem) {
+        setReadHistory(prev => prev.map(item => item.id === tempId ? savedItem : item));
+      }
+    } else {
+      // Fallback for guest (local state only)
+      if (!readHistory.some(item => item.paper.id === paper.id)) {
+        setReadHistory(prev => [
+          {
+            id: `history-${Date.now()}`,
+            paper: paper,
+            timestamp: Date.now()
+          },
+          ...prev
+        ]);
+        alert("Sign in to save your knowledge tree permanently!");
+      }
     }
-  }, [readHistory]);
+  }, [readHistory, user]);
 
   const handleViewTree = useCallback(() => {
     setView(AppView.TREE);
@@ -109,37 +161,49 @@ const App: React.FC = () => {
   }, []);
 
   const isCurrentPaperRead = selectedPaper 
-    ? readHistory.some(item => item.paper.title === selectedPaper.title) // Use title as ID might vary in search results vs history
+    ? readHistory.some(item => item.paper.title === selectedPaper.title) 
     : false;
 
-  // Determine layout class based on view
-  // Reader view needs fixed height to manage its own internal scroll and chat panel
-  // Landing and other views should allow the window to scroll naturally
-  const appLayoutClass = view === AppView.READER 
+  const isReader = view === AppView.READER;
+
+  // Layout calculations
+  const appLayoutClass = isReader 
     ? 'h-screen overflow-hidden' 
-    : 'min-h-screen';
+    : 'min-h-screen overflow-x-hidden';
+
+  const mainClass = isReader
+    ? 'flex-1 relative flex flex-col min-h-0 overflow-hidden'
+    : 'flex-1 relative flex flex-col';
 
   return (
     <div className={`flex flex-col bg-main selection:bg-purple-200 transition-colors duration-300 theme-${theme} ${appLayoutClass}`}>
       {/* Universal Search Header */}
-      <SearchHeader 
-        onSearch={handleSearch} 
-        isSearching={isSearching} 
-        currentQuery={searchQuery}
-        onGoHome={() => setView(AppView.LANDING)}
-        currentTheme={theme}
-        onThemeChange={setTheme}
-        showSearchInput={view !== AppView.SEARCH && view !== AppView.LANDING}
-        onViewTree={handleViewTree}
-        onViewBadges={handleViewBadges}
-        isLandingPage={view === AppView.LANDING}
-      />
+      {view !== AppView.AUTH && (
+        <SearchHeader 
+          onSearch={handleSearch} 
+          isSearching={isSearching} 
+          currentQuery={searchQuery}
+          onGoHome={() => setView(AppView.LANDING)}
+          currentTheme={theme}
+          onThemeChange={setTheme}
+          showSearchInput={view !== AppView.SEARCH && view !== AppView.LANDING}
+          onViewTree={handleViewTree}
+          onViewBadges={handleViewBadges}
+          isLandingPage={view === AppView.LANDING}
+          user={user}
+          onLoginClick={handleLoginClick}
+        />
+      )}
 
       {/* Main Content Area */}
-      <main className="flex-1 relative">
+      <main className={mainClass}>
         
         {view === AppView.LANDING && (
           <LandingPage onStart={handleStart} theme={theme} />
+        )}
+
+        {view === AppView.AUTH && (
+          <AuthPage onBack={() => setView(AppView.LANDING)} />
         )}
 
         {view === AppView.SEARCH && (
@@ -152,6 +216,11 @@ const App: React.FC = () => {
                  OpenParallax bridges the gap between complex data and clear understanding. 
                  Search sources like <strong>Nature</strong>, <strong>IEEE</strong>, and <strong>arXiv</strong> instantly.
                </p>
+               {!user && (
+                 <button onClick={handleLoginClick} className="text-sm text-amber-600 font-medium bg-amber-50 inline-block px-4 py-2 rounded-full border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer">
+                   Tip: Sign in to track your reading history and earn ranks!
+                 </button>
+               )}
              </div>
              
              {/* Center Search Bar */}

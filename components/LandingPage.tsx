@@ -237,34 +237,58 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, theme }) => {
                  <div className="h-3 w-1/2 bg-black/60"></div>
               </div>
 
-              {/* Dense 2-Column Layout */}
-              <div className="grid grid-cols-2 gap-3 h-full opacity-70">
-                 {/* Column 1 */}
-                 <div className="space-y-1.5">
-                    {[...Array(20)].map((_, i) => (
-                      <div key={`c1-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
-                    ))}
-                    <div className="h-16 w-full bg-black/10 border border-black/20 my-2 flex items-center justify-center">
-                       <Activity size={12} className="opacity-20"/>
-                    </div>
-                    {[...Array(15)].map((_, i) => (
-                      <div key={`c1-b-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
-                    ))}
-                 </div>
-                 {/* Column 2 */}
-                 <div className="space-y-1.5">
-                    {[...Array(12)].map((_, i) => (
-                      <div key={`c2-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
-                    ))}
-                    {/* Scribbled Note in Margin */}
-                    <div className="relative">
-                       <div className="absolute -left-4 top-0 w-24 h-8 border-2 border-red-500/50 rounded-full rotate-[-10deg]"></div>
-                       <span className="absolute -left-2 -top-4 text-[10px] text-red-600 font-handwriting rotate-[-15deg]">What??</span>
-                    </div>
-                    {[...Array(25)].map((_, i) => (
-                      <div key={`c2-b-${i}`} className="h-1 bg-black/40 w-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
-                    ))}
-                 </div>
+              {/* Dense 2-Column Layout with Real Text */}
+              <div className="grid grid-cols-2 gap-3 h-full overflow-hidden text-[5px] leading-tight font-serif text-justify opacity-80 text-black">
+                  {/* Column 1 */}
+                  <div>
+                     <p className="mb-2">
+                       Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                     </p>
+                     <p className="mb-2">
+                       <strong>2.1 Methodology.</strong> Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+                     </p>
+                     <div className="my-2 border border-black/20 p-1 bg-gray-100">
+                        <div className="h-10 w-full bg-gray-200 flex items-center justify-center text-[4px] text-gray-500">Figure 1: Chaos Metrics</div>
+                     </div>
+                     <p className="mb-2">
+                       Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. 
+                     </p>
+                     <p className="mb-2">
+                       Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.
+                     </p>
+                     <p>
+                       Consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam.
+                     </p>
+                  </div>
+
+                  {/* Column 2 */}
+                  <div>
+                     <p className="mb-2">
+                       At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.
+                     </p>
+                     <p className="mb-2">
+                       Similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus.
+                     </p>
+                     {/* Scribbled Note */}
+                     <div className="relative my-4">
+                         <div className="absolute -left-2 -top-2 w-full h-full border border-red-500/30 rounded-full rotate-[-2deg]"></div>
+                         <p className="text-red-700/80 font-handwriting transform -rotate-1 text-[6px]">
+                           Significant deviation (p {"<"} 0.05)??
+                         </p>
+                     </div>
+                     <p className="mb-2">
+                       Omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. 
+                     </p>
+                     <p className="mb-2">
+                       Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellat.
+                     </p>
+                     <div className="bg-black/5 p-1 border-l-2 border-black mb-2">
+                       <em className="block text-[4px]">Equation 3.4: E = mc^2 + chaos</em>
+                     </div>
+                     <p>
+                        Hanc ego cum teneam sententiam, quid est cur verear, ne ad eam non possim accommodare Torquatos nostros? Quos tu paulo ante cum memoriter, tum etiam erga nos amice et benevole collegisti.
+                     </p>
+                  </div>
               </div>
 
               {/* Floating Elements */}
