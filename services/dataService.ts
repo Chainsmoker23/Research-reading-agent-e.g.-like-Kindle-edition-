@@ -1,6 +1,6 @@
 
 import { Paper, ReadHistoryItem } from '../types';
-import { Client } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 
 export interface UserProfile {
   id: string;
@@ -17,19 +17,20 @@ const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-p
 
 // --- DB CONNECTION HELPER ---
 
+// Initialize the HTTP-based driver (stateless, uses fetch)
+const sql = neon(DEFAULT_NEON_URL);
+
 /**
- * Executes a single SQL query using an atomic Client connection.
- * This is preferred over Pool for browser environments to avoid WebSocket/EventListener issues.
+ * Executes a single SQL query using the Neon HTTP driver.
+ * Returns an object { rows: [...] } to maintain compatibility with existing logic.
  */
 const executeSql = async (text: string, params?: any[]) => {
-  const client = new Client({ connectionString: DEFAULT_NEON_URL });
   try {
-    await client.connect();
-    const result = await client.query(text, params);
-    return result;
-  } finally {
-    // Always close the connection immediately to prevent lingering socket issues
-    await client.end();
+    // The neon driver accepts (string, params) and returns the rows array directly.
+    const result = await sql(text, params || []);
+    return { rows: result };
+  } catch (err) {
+    throw err;
   }
 };
 
@@ -47,22 +48,23 @@ const getCurrentUserId = () => {
 
 /**
  * Ensures necessary tables exist.
- * Uses a single multi-statement block if possible, or sequential execution.
+ * HTTP driver works best with single statements, so we split them up.
  */
 const ensureTablesExist = async () => {
   try {
+    await executeSql(`CREATE TABLE IF NOT EXISTS system_settings (key_name TEXT PRIMARY KEY, key_value TEXT)`);
+    
     await executeSql(`
-      CREATE TABLE IF NOT EXISTS system_settings (
-        key_name TEXT PRIMARY KEY,
-        key_value TEXT
-      );
       CREATE TABLE IF NOT EXISTS user_profiles (
         user_id TEXT PRIMARY KEY,
         score INTEGER DEFAULT 0,
         rank TEXT,
         last_active TIMESTAMP DEFAULT NOW(),
         joined_at TIMESTAMP DEFAULT NOW()
-      );
+      )
+    `);
+    
+    await executeSql(`
       CREATE TABLE IF NOT EXISTS reading_history (
         id SERIAL PRIMARY KEY,
         user_id TEXT,
@@ -73,14 +75,17 @@ const ensureTablesExist = async () => {
         paper_source TEXT,
         read_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(user_id, paper_title)
-      );
+      )
+    `);
+    
+    await executeSql(`
       CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
         user_id TEXT,
         action_type TEXT,
         details TEXT,
         created_at TIMESTAMP DEFAULT NOW()
-      );
+      )
     `);
   } catch (e) {
     console.error("Error initializing tables:", e);
@@ -129,9 +134,7 @@ export const logActivity = async (action: string, details: string) => {
   if (userId === 'guest') return;
 
   try {
-    // We execute these blindly without waiting for response to keep UI snappy
-    // Note: In strict 'Client' mode, we must await the connect/end cycle, 
-    // so we wrap it in a non-blocking promise chain if we don't want to await it.
+    // Execute blindly without awaiting to keep UI snappy
     executeSql(
       `INSERT INTO activity_log (user_id, action_type, details) VALUES ($1, $2, $3)`,
       [userId, action, details]
