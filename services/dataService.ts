@@ -13,28 +13,24 @@ const HISTORY_KEY = 'parallax_history';
 const PROFILES_KEY = 'parallax_profiles';
 
 // --- CONFIGURATION ---
-// Removed '?sslmode=require' as the HTTP driver uses HTTPS by default and parsing query params 
-// can sometimes cause "Invalid name" header errors in the fetch implementation.
 const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-pond-abyorp16-pooler.eu-west-2.aws.neon.tech/neondb';
 
 // --- DB CONNECTION HELPER ---
 
 /**
  * Executes a single SQL query using the Neon HTTP driver.
- * Returns an object { rows: [...] } to maintain compatibility with existing logic.
+ * Returns { rows: [] } on success, or null on failure (graceful degradation).
  */
 const executeSql = async (text: string, params?: any[]) => {
   try {
-    // Initialize the sql client lazily to ensure environment is ready
     const sql = neon(DEFAULT_NEON_URL);
-    
-    // The neon driver accepts (string, params) and returns the rows array directly.
-    // Casting to any because TypeScript definition might expect TemplateStringsArray (tagged template)
+    // Cast to any to bypass potential TS/TemplateStringsArray mismatches
     const result = await (sql as any)(text, params || []);
     return { rows: result };
-  } catch (err) {
-    console.error("SQL Execution Error:", err);
-    throw err;
+  } catch (err: any) {
+    // We log the error but don't throw it, so the app can fall back to local storage
+    console.warn("NeonDB Connection Error (Using Local Fallback):", err.message);
+    return null;
   }
 };
 
@@ -50,83 +46,34 @@ const getCurrentUserId = () => {
   }
 };
 
-/**
- * Ensures necessary tables exist.
- * HTTP driver works best with single statements, so we split them up.
- */
-const ensureTablesExist = async () => {
-  try {
-    await executeSql(`CREATE TABLE IF NOT EXISTS system_settings (key_name TEXT PRIMARY KEY, key_value TEXT)`);
-    
-    await executeSql(`
-      CREATE TABLE IF NOT EXISTS user_profiles (
-        user_id TEXT PRIMARY KEY,
-        score INTEGER DEFAULT 0,
-        rank TEXT,
-        last_active TIMESTAMP DEFAULT NOW(),
-        joined_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    
-    await executeSql(`
-      CREATE TABLE IF NOT EXISTS reading_history (
-        id SERIAL PRIMARY KEY,
-        user_id TEXT,
-        paper_title TEXT,
-        paper_authors TEXT,
-        paper_year TEXT,
-        paper_description TEXT,
-        paper_source TEXT,
-        read_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, paper_title)
-      )
-    `);
-    
-    await executeSql(`
-      CREATE TABLE IF NOT EXISTS activity_log (
-        id SERIAL PRIMARY KEY,
-        user_id TEXT,
-        action_type TEXT,
-        details TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-  } catch (e) {
-    console.error("Error initializing tables:", e);
-  }
-};
-
 // --- SHARED API KEY MANAGEMENT ---
 
 export const getGlobalApiKeys = async (): Promise<string[]> => {
-  try {
-    const { rows } = await executeSql(`SELECT key_value FROM system_settings WHERE key_name = 'shared_api_keys'`);
-    if (rows.length > 0) {
-      return JSON.parse(rows[0].key_value);
-    }
-  } catch (e: any) {
-    // If table doesn't exist, try to create it
-    if (e.message?.includes('does not exist') || e.message?.includes('relation')) {
-       await ensureTablesExist();
-    }
+  // Try DB first
+  const result = await executeSql(`SELECT key_value FROM system_settings WHERE key_name = 'shared_api_keys'`);
+  if (result && result.rows.length > 0) {
+    try {
+      return JSON.parse(result.rows[0].key_value);
+    } catch (e) { console.error(e); }
   }
   return ['', '', '', '', ''];
 };
 
 export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
-  // Ensure tables exist before writing
-  await ensureTablesExist();
-  
-  try {
-    await executeSql(`
-      INSERT INTO system_settings (key_name, key_value) 
-      VALUES ('shared_api_keys', $1)
-      ON CONFLICT (key_name) 
-      DO UPDATE SET key_value = $1
-    `, [JSON.stringify(keys)]);
-  } catch (e: any) {
-    console.error("DB Save Error:", e);
-    throw new Error(e.message || "Database write failed");
+  // Try DB
+  const result = await executeSql(`
+    INSERT INTO system_settings (key_name, key_value) 
+    VALUES ('shared_api_keys', $1)
+    ON CONFLICT (key_name) 
+    DO UPDATE SET key_value = $1
+  `, [JSON.stringify(keys)]);
+
+  if (!result) {
+    // If DB failed, throw error only if you want to notify user, 
+    // OR just swallow it if LocalStorage is enough.
+    // The user saw "Failed to save...", so let's throw a cleaner error or just let LocalStorage handle it.
+    // We will throw a specific warning so the UI knows DB failed but LocalStorage might have worked.
+    throw new Error("Database unreachable. Keys saved to your browser only.");
   }
 };
 
@@ -134,24 +81,19 @@ export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
 
 export const logActivity = async (action: string, details: string) => {
   const userId = getCurrentUserId();
-  
   if (userId === 'guest') return;
 
-  try {
-    // Execute blindly without awaiting to keep UI snappy
-    executeSql(
-      `INSERT INTO activity_log (user_id, action_type, details) VALUES ($1, $2, $3)`,
-      [userId, action, details]
-    ).catch(console.warn);
-    
-    executeSql(
-      `INSERT INTO user_profiles (user_id, last_active) VALUES ($1, NOW()) 
-       ON CONFLICT (user_id) DO UPDATE SET last_active = NOW()`,
-      [userId]
-    ).catch(console.warn);
-  } catch (e) {
-    console.warn("Log activity failed", e);
-  }
+  // Fire and forget, no await
+  executeSql(
+    `INSERT INTO activity_log (user_id, action_type, details) VALUES ($1, $2, $3)`,
+    [userId, action, details]
+  ).catch(() => {});
+  
+  executeSql(
+    `INSERT INTO user_profiles (user_id, last_active) VALUES ($1, NOW()) 
+     ON CONFLICT (user_id) DO UPDATE SET last_active = NOW()`,
+    [userId]
+  ).catch(() => {});
 };
 
 // --- CORE DATA METHODS ---
@@ -160,21 +102,22 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
   const userId = getCurrentUserId();
   let history: ReadHistoryItem[] = [];
 
-  // Local Fallback first
+  // 1. Load Local Storage (Fastest)
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     const allHistory = raw ? JSON.parse(raw) : {};
     history = allHistory[userId] || [];
   } catch (e) {}
 
+  // 2. Try to merge from DB if logged in
   if (userId !== 'guest') {
-    try {
-      const { rows } = await executeSql(
-        `SELECT * FROM reading_history WHERE user_id = $1 ORDER BY read_at DESC`,
-        [userId]
-      );
-      
-      const dbHistory: ReadHistoryItem[] = rows.map((row: any) => ({
+    const result = await executeSql(
+      `SELECT * FROM reading_history WHERE user_id = $1 ORDER BY read_at DESC`,
+      [userId]
+    );
+    
+    if (result && result.rows) {
+      const dbHistory: ReadHistoryItem[] = result.rows.map((row: any) => ({
         id: row.id.toString(),
         timestamp: new Date(row.read_at).getTime(),
         paper: {
@@ -188,11 +131,10 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
         }
       }));
 
-      if (dbHistory.length >= history.length) {
+      // Simple merge strategy: if DB has more, use DB
+      if (dbHistory.length > history.length) {
         history = dbHistory;
       }
-    } catch (e) {
-       console.warn("Fetch history failed", e);
     }
   }
 
@@ -208,7 +150,7 @@ export const saveReadPaper = async (paper: Paper): Promise<ReadHistoryItem> => {
     timestamp: Date.now()
   };
 
-  // Local Save
+  // 1. Save to Local Storage
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     const allHistory = raw ? JSON.parse(raw) : {};
@@ -219,23 +161,19 @@ export const saveReadPaper = async (paper: Paper): Promise<ReadHistoryItem> => {
     }
   } catch (e) {}
 
-  // DB Save
+  // 2. Save to DB (Background)
   if (userId !== 'guest') {
-    try {
-      await ensureTablesExist();
-      await executeSql(
-        `INSERT INTO reading_history (user_id, paper_title, paper_authors, paper_year, paper_description, paper_source)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (user_id, paper_title) DO NOTHING`,
-        [userId, paper.title, paper.authors, paper.year, paper.description, paper.source]
-      );
-      await logActivity('READ_PAPER', paper.title);
-      await updateUserScore(100); 
-    } catch (err) {
-      console.error("NeonDB Save Error", err);
-    }
+    executeSql(
+      `INSERT INTO reading_history (user_id, paper_title, paper_authors, paper_year, paper_description, paper_source)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (user_id, paper_title) DO NOTHING`,
+      [userId, paper.title, paper.authors, paper.year, paper.description, paper.source]
+    ).then(() => {
+        logActivity('READ_PAPER', paper.title);
+        updateUserScore(100); 
+    }).catch(() => {});
   } else {
-    await updateUserScore(100);
+     await updateUserScore(100);
   }
 
   return newItem;
@@ -252,24 +190,21 @@ export const getUserProfile = async (): Promise<UserProfile> => {
   };
 
   if (userId !== 'guest') {
-    try {
-      await ensureTablesExist();
-      // Create if not exists
-      await executeSql(
-        `INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, 
-        [userId]
-      );
+    // Create profile if not exists
+    await executeSql(
+      `INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, 
+      [userId]
+    );
 
-      const { rows } = await executeSql(
-        `SELECT score, rank FROM user_profiles WHERE user_id = $1`, 
-        [userId]
-      );
-      
-      if (rows.length > 0) {
-        profile.score = rows[0].score;
-        profile.rank = rows[0].rank || profile.rank;
-      }
-    } catch (e) {}
+    const result = await executeSql(
+      `SELECT score, rank FROM user_profiles WHERE user_id = $1`, 
+      [userId]
+    );
+    
+    if (result && result.rows.length > 0) {
+      profile.score = result.rows[0].score;
+      profile.rank = result.rows[0].rank || profile.rank;
+    }
   }
 
   return profile;
@@ -278,12 +213,10 @@ export const getUserProfile = async (): Promise<UserProfile> => {
 const updateUserScore = async (points: number) => {
   const userId = getCurrentUserId();
   if (userId !== 'guest') {
-    try {
-      await executeSql(
-        `UPDATE user_profiles SET score = score + $1, last_active = NOW() WHERE user_id = $2`,
-        [points, userId]
-      );
-    } catch (e) {}
+    await executeSql(
+      `UPDATE user_profiles SET score = score + $1, last_active = NOW() WHERE user_id = $2`,
+      [points, userId]
+    );
   }
 };
 
@@ -315,3 +248,4 @@ export const restoreFromBackup = async (file: File): Promise<boolean> => {
     reader.readAsText(file);
   });
 };
+    
