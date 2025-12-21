@@ -13,12 +13,11 @@ const HISTORY_KEY = 'parallax_history';
 const PROFILES_KEY = 'parallax_profiles';
 
 // --- CONFIGURATION ---
-const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-pond-abyorp16-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require';
+// Removed '?sslmode=require' as the HTTP driver uses HTTPS by default and parsing query params 
+// can sometimes cause "Invalid name" header errors in the fetch implementation.
+const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-pond-abyorp16-pooler.eu-west-2.aws.neon.tech/neondb';
 
 // --- DB CONNECTION HELPER ---
-
-// Initialize the HTTP-based driver (stateless, uses fetch)
-const sql = neon(DEFAULT_NEON_URL);
 
 /**
  * Executes a single SQL query using the Neon HTTP driver.
@@ -26,10 +25,15 @@ const sql = neon(DEFAULT_NEON_URL);
  */
 const executeSql = async (text: string, params?: any[]) => {
   try {
+    // Initialize the sql client lazily to ensure environment is ready
+    const sql = neon(DEFAULT_NEON_URL);
+    
     // The neon driver accepts (string, params) and returns the rows array directly.
-    const result = await sql(text, params || []);
+    // Casting to any because TypeScript definition might expect TemplateStringsArray (tagged template)
+    const result = await (sql as any)(text, params || []);
     return { rows: result };
   } catch (err) {
+    console.error("SQL Execution Error:", err);
     throw err;
   }
 };
@@ -102,7 +106,7 @@ export const getGlobalApiKeys = async (): Promise<string[]> => {
     }
   } catch (e: any) {
     // If table doesn't exist, try to create it
-    if (e.message?.includes('does not exist')) {
+    if (e.message?.includes('does not exist') || e.message?.includes('relation')) {
        await ensureTablesExist();
     }
   }
