@@ -1,6 +1,6 @@
 
 import { Paper, ReadHistoryItem } from '../types';
-import { Pool } from '@neondatabase/serverless';
+import { Client } from '@neondatabase/serverless';
 
 export interface UserProfile {
   id: string;
@@ -13,24 +13,24 @@ const HISTORY_KEY = 'parallax_history';
 const PROFILES_KEY = 'parallax_profiles';
 
 // --- CONFIGURATION ---
-// Removed channel_binding=require as it can cause issues in browser environments.
-// Kept sslmode=require.
 const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-pond-abyorp16-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require';
 
-// --- DB CONNECTION ---
+// --- DB CONNECTION HELPER ---
 
-// Use a singleton pool instance to avoid exhausting connections
-let globalPool: Pool | null = null;
-
-const getDbPool = () => {
-  if (!globalPool) {
-    console.log("Initializing new NeonDB Pool...");
-    globalPool = new Pool({ 
-      connectionString: DEFAULT_NEON_URL,
-      // connectionTimeoutMillis: 5000,
-    });
+/**
+ * Executes a single SQL query using an atomic Client connection.
+ * This is preferred over Pool for browser environments to avoid WebSocket/EventListener issues.
+ */
+const executeSql = async (text: string, params?: any[]) => {
+  const client = new Client({ connectionString: DEFAULT_NEON_URL });
+  try {
+    await client.connect();
+    const result = await client.query(text, params);
+    return result;
+  } finally {
+    // Always close the connection immediately to prevent lingering socket issues
+    await client.end();
   }
-  return globalPool;
 };
 
 // --- HELPER METHODS ---
@@ -47,29 +47,22 @@ const getCurrentUserId = () => {
 
 /**
  * Ensures necessary tables exist.
- * We call this lazily when performing DB operations to ensure robustness after wipes.
+ * Uses a single multi-statement block if possible, or sequential execution.
  */
-const ensureTablesExist = async (pool: Pool) => {
+const ensureTablesExist = async () => {
   try {
-    // We execute these sequentially to ensure stability
-    await pool.query(`
+    await executeSql(`
       CREATE TABLE IF NOT EXISTS system_settings (
         key_name TEXT PRIMARY KEY,
         key_value TEXT
-      )
-    `);
-    
-    await pool.query(`
+      );
       CREATE TABLE IF NOT EXISTS user_profiles (
         user_id TEXT PRIMARY KEY,
         score INTEGER DEFAULT 0,
         rank TEXT,
         last_active TIMESTAMP DEFAULT NOW(),
         joined_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-    await pool.query(`
+      );
       CREATE TABLE IF NOT EXISTS reading_history (
         id SERIAL PRIMARY KEY,
         user_id TEXT,
@@ -80,50 +73,43 @@ const ensureTablesExist = async (pool: Pool) => {
         paper_source TEXT,
         read_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(user_id, paper_title)
-      )
-    `);
-
-    await pool.query(`
+      );
       CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
         user_id TEXT,
         action_type TEXT,
         details TEXT,
         created_at TIMESTAMP DEFAULT NOW()
-      )
+      );
     `);
   } catch (e) {
     console.error("Error initializing tables:", e);
-    // Don't throw, try to proceed, maybe tables exist
   }
 };
 
 // --- SHARED API KEY MANAGEMENT ---
 
 export const getGlobalApiKeys = async (): Promise<string[]> => {
-  const pool = getDbPool();
   try {
-    const { rows } = await pool.query(`SELECT key_value FROM system_settings WHERE key_name = 'shared_api_keys'`);
+    const { rows } = await executeSql(`SELECT key_value FROM system_settings WHERE key_name = 'shared_api_keys'`);
     if (rows.length > 0) {
       return JSON.parse(rows[0].key_value);
     }
   } catch (e: any) {
-    console.warn("Fetch keys failed, attempting table init...", e.message);
-    // If it fails, it might be first run, try ensure tables
-    await ensureTablesExist(pool);
-    return ['', '', '', '', ''];
+    // If table doesn't exist, try to create it
+    if (e.message?.includes('does not exist')) {
+       await ensureTablesExist();
+    }
   }
   return ['', '', '', '', ''];
 };
 
 export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
-  const pool = getDbPool();
-  
   // Ensure tables exist before writing
-  await ensureTablesExist(pool);
+  await ensureTablesExist();
   
   try {
-    await pool.query(`
+    await executeSql(`
       INSERT INTO system_settings (key_name, key_value) 
       VALUES ('shared_api_keys', $1)
       ON CONFLICT (key_name) 
@@ -139,26 +125,25 @@ export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
 
 export const logActivity = async (action: string, details: string) => {
   const userId = getCurrentUserId();
-  const pool = getDbPool();
   
   if (userId === 'guest') return;
 
-  if (pool) {
-    try {
-      await pool.query(
-        `INSERT INTO activity_log (user_id, action_type, details) VALUES ($1, $2, $3)`,
-        [userId, action, details]
-      );
-      
-      await pool.query(
-        `INSERT INTO user_profiles (user_id, last_active) VALUES ($1, NOW()) 
-         ON CONFLICT (user_id) DO UPDATE SET last_active = NOW()`,
-        [userId]
-      );
-    } catch (e) {
-      // If fails, silent
-      console.warn("Log activity failed", e);
-    }
+  try {
+    // We execute these blindly without waiting for response to keep UI snappy
+    // Note: In strict 'Client' mode, we must await the connect/end cycle, 
+    // so we wrap it in a non-blocking promise chain if we don't want to await it.
+    executeSql(
+      `INSERT INTO activity_log (user_id, action_type, details) VALUES ($1, $2, $3)`,
+      [userId, action, details]
+    ).catch(console.warn);
+    
+    executeSql(
+      `INSERT INTO user_profiles (user_id, last_active) VALUES ($1, NOW()) 
+       ON CONFLICT (user_id) DO UPDATE SET last_active = NOW()`,
+      [userId]
+    ).catch(console.warn);
+  } catch (e) {
+    console.warn("Log activity failed", e);
   }
 };
 
@@ -166,7 +151,6 @@ export const logActivity = async (action: string, details: string) => {
 
 export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
   const userId = getCurrentUserId();
-  const pool = getDbPool();
   let history: ReadHistoryItem[] = [];
 
   // Local Fallback first
@@ -176,9 +160,9 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
     history = allHistory[userId] || [];
   } catch (e) {}
 
-  if (pool && userId !== 'guest') {
+  if (userId !== 'guest') {
     try {
-      const { rows } = await pool.query(
+      const { rows } = await executeSql(
         `SELECT * FROM reading_history WHERE user_id = $1 ORDER BY read_at DESC`,
         [userId]
       );
@@ -229,11 +213,10 @@ export const saveReadPaper = async (paper: Paper): Promise<ReadHistoryItem> => {
   } catch (e) {}
 
   // DB Save
-  const pool = getDbPool();
-  if (pool && userId !== 'guest') {
+  if (userId !== 'guest') {
     try {
-      await ensureTablesExist(pool);
-      await pool.query(
+      await ensureTablesExist();
+      await executeSql(
         `INSERT INTO reading_history (user_id, paper_title, paper_authors, paper_year, paper_description, paper_source)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (user_id, paper_title) DO NOTHING`,
@@ -261,17 +244,16 @@ export const getUserProfile = async (): Promise<UserProfile> => {
     joinedAt: Date.now()
   };
 
-  const pool = getDbPool();
-  if (pool && userId !== 'guest') {
+  if (userId !== 'guest') {
     try {
-      await ensureTablesExist(pool);
+      await ensureTablesExist();
       // Create if not exists
-      await pool.query(
+      await executeSql(
         `INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, 
         [userId]
       );
 
-      const { rows } = await pool.query(
+      const { rows } = await executeSql(
         `SELECT score, rank FROM user_profiles WHERE user_id = $1`, 
         [userId]
       );
@@ -288,10 +270,9 @@ export const getUserProfile = async (): Promise<UserProfile> => {
 
 const updateUserScore = async (points: number) => {
   const userId = getCurrentUserId();
-  const pool = getDbPool();
-  if (pool && userId !== 'guest') {
+  if (userId !== 'guest') {
     try {
-      await pool.query(
+      await executeSql(
         `UPDATE user_profiles SET score = score + $1, last_active = NOW() WHERE user_id = $2`,
         [points, userId]
       );
