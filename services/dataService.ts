@@ -95,16 +95,19 @@ export const logActivity = async (action: string, details: string) => {
 
 export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
   const userId = getCurrentUserId();
-  let history: ReadHistoryItem[] = [];
+  
+  // Use a Map to merge unique papers by title
+  const historyMap = new Map<string, ReadHistoryItem>();
 
-  // 1. Load Local Storage (Fastest)
+  // 1. Load Local Storage
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     const allHistory = raw ? JSON.parse(raw) : {};
-    history = allHistory[userId] || [];
+    const userLocalHistory: ReadHistoryItem[] = allHistory[userId] || [];
+    userLocalHistory.forEach(item => historyMap.set(item.paper.title, item));
   } catch (e) {}
 
-  // 2. Try to merge from DB if logged in
+  // 2. Load DB and Merge
   if (userId !== 'guest') {
     const result = await executeSql(
       `SELECT * FROM reading_history WHERE user_id = $1 ORDER BY read_at DESC`,
@@ -112,27 +115,30 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
     );
     
     if (result && result.rows) {
-      const dbHistory: ReadHistoryItem[] = result.rows.map((row: any) => ({
-        id: row.id.toString(),
-        timestamp: new Date(row.read_at).getTime(),
-        paper: {
+      result.rows.forEach((row: any) => {
+        const timestamp = new Date(row.read_at).getTime();
+        const item: ReadHistoryItem = {
           id: row.id.toString(),
-          title: row.paper_title,
-          authors: row.paper_authors,
-          year: row.paper_year,
-          description: row.paper_description,
-          source: row.paper_source,
-          status: 'Peer Reviewed'
-        }
-      }));
-
-      if (dbHistory.length > history.length) {
-        history = dbHistory;
-      }
+          timestamp: timestamp,
+          paper: {
+            id: row.id.toString(),
+            title: row.paper_title,
+            authors: row.paper_authors,
+            year: row.paper_year,
+            description: row.paper_description,
+            source: row.paper_source,
+            status: 'Peer Reviewed'
+          }
+        };
+        // DB takes precedence or we keep the one with the later timestamp if conflict
+        // Generally, we trust the DB if it exists.
+        historyMap.set(row.paper_title, item);
+      });
     }
   }
 
-  return history;
+  // Convert Map back to array and sort by newest first
+  return Array.from(historyMap.values()).sort((a, b) => b.timestamp - a.timestamp);
 };
 
 export const saveReadPaper = async (paper: Paper): Promise<ReadHistoryItem> => {
@@ -144,28 +150,42 @@ export const saveReadPaper = async (paper: Paper): Promise<ReadHistoryItem> => {
     timestamp: Date.now()
   };
 
-  // 1. Save to Local Storage
+  // 1. Save to Local Storage (Immediate UI feedback)
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     const allHistory = raw ? JSON.parse(raw) : {};
     const userHistory: ReadHistoryItem[] = allHistory[userId] || [];
+    
+    // Prevent duplicates in local storage
     if (!userHistory.find(h => h.paper.title === paper.title)) {
       allHistory[userId] = [newItem, ...userHistory];
       localStorage.setItem(HISTORY_KEY, JSON.stringify(allHistory));
     }
   } catch (e) {}
 
-  // 2. Save to DB (Background)
+  // 2. Save to DB (Await this to ensure data integrity)
   if (userId !== 'guest') {
-    executeSql(
-      `INSERT INTO reading_history (user_id, paper_title, paper_authors, paper_year, paper_description, paper_source)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (user_id, paper_title) DO NOTHING`,
-      [userId, paper.title, paper.authors, paper.year, paper.description, paper.source]
-    ).then(() => {
-        logActivity('READ_PAPER', paper.title);
-        updateUserScore(100); 
-    }).catch(() => {});
+    try {
+      // Ensure values are strings/safe before sending
+      const pTitle = paper.title || "Unknown Title";
+      const pAuthors = paper.authors || "Unknown Authors";
+      const pYear = paper.year ? String(paper.year) : "N/A";
+      const pDesc = paper.description || "";
+      const pSource = paper.source || "Unknown Source";
+
+      await executeSql(
+        `INSERT INTO reading_history (user_id, paper_title, paper_authors, paper_year, paper_description, paper_source)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (user_id, paper_title) DO NOTHING`,
+        [userId, pTitle, pAuthors, pYear, pDesc, pSource]
+      );
+      
+      // These can remain background tasks as they are secondary
+      logActivity('READ_PAPER', pTitle);
+      updateUserScore(100); 
+    } catch (err) {
+      console.error("Failed to save paper to DB:", err);
+    }
   } else {
      await updateUserScore(100);
   }
