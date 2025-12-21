@@ -47,6 +47,11 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Ensure scroll resets when view changes (prevents blank screens if previous view was scrolled down)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [view]);
+
   // Sync User Profile and History
   const syncUserData = async () => {
     const [history, userProfile] = await Promise.all([

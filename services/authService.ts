@@ -1,4 +1,5 @@
 
+import { logActivity } from './dataService';
 
 export interface User {
   id: string;
@@ -24,6 +25,9 @@ export const loginUser = async (email: string, password: string): Promise<User> 
     const userData = { id: user.id, email: user.email, name: user.name };
     if (typeof window !== 'undefined') {
       localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+      // Log the login event to NeonDB
+      // We don't await this to keep UI snappy; it happens in background
+      logActivity('LOGIN', `User ${user.name} logged in via web interface`);
     }
     return userData;
   }
@@ -34,8 +38,6 @@ export const loginUser = async (email: string, password: string): Promise<User> 
 export const signOut = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(CURRENT_USER_KEY);
-    // Force reload to clear any memory state
-    window.location.reload(); 
   }
 };
 
