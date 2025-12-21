@@ -1,4 +1,5 @@
 
+
 export interface User {
   id: string;
   email: string;
@@ -21,7 +22,9 @@ export const loginUser = async (email: string, password: string): Promise<User> 
 
   if (user) {
     const userData = { id: user.id, email: user.email, name: user.name };
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+    }
     return userData;
   }
 
@@ -29,9 +32,11 @@ export const loginUser = async (email: string, password: string): Promise<User> 
 };
 
 export const signOut = () => {
-  localStorage.removeItem(CURRENT_USER_KEY);
-  // Force reload to clear any memory state
-  window.location.reload(); 
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(CURRENT_USER_KEY);
+    // Force reload to clear any memory state
+    window.location.reload(); 
+  }
 };
 
 export const getCurrentUser = (): User | null => {
