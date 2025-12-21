@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Theme, SearchFilters } from '../types';
-import { Moon, Sun, Coffee, Sprout, Trophy, LogIn, LogOut } from 'lucide-react';
+import { Moon, Sun, Coffee, Sprout, Trophy, LogIn, LogOut, Settings } from 'lucide-react';
 import SearchBar from './SearchBar';
 
 interface SearchHeaderProps {
@@ -18,6 +18,7 @@ interface SearchHeaderProps {
   user?: any;
   onLoginClick: () => void;
   onLogout: () => void;
+  onOpenKeySettings?: () => void;
 }
 
 const SearchHeader: React.FC<SearchHeaderProps> = ({ 
@@ -32,6 +33,7 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
   user,
   onLoginClick,
   onLogout,
+  onOpenKeySettings,
   currentQuery
 }) => {
   return (
@@ -86,6 +88,13 @@ const SearchHeader: React.FC<SearchHeaderProps> = ({
               <div className="w-8 h-8 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center text-violet-700 font-bold" title={user.email}>
                 {user.email?.charAt(0).toUpperCase()}
               </div>
+              
+              {onOpenKeySettings && (
+                 <button onClick={onOpenKeySettings} className="p-2 text-textMuted hover:text-textMain transition-colors" title="API Settings">
+                   <Settings size={18} />
+                 </button>
+              )}
+
               <button onClick={onLogout} className="p-2 text-textMuted hover:text-red-500 transition-colors" title="Sign Out">
                 <LogOut size={18} />
               </button>

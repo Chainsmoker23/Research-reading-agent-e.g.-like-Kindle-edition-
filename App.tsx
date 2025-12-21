@@ -3,8 +3,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { AppView, Paper, Theme, SearchFilters, ReadHistoryItem } from './types';
 import { generatePaperExplanation } from './services/geminiService';
 import { searchPapersFast } from './services/parallelSearchService';
-import { getCurrentUser, signOut } from './backend/authService';
-import { saveReadPaper, getReadingHistory, getUserProfile, UserProfile } from './backend/dataService';
+import { getCurrentUser, signOut } from './services/authService';
+import { saveReadPaper, getReadingHistory, getUserProfile, UserProfile } from './services/dataService';
 import SearchHeader from './components/SearchHeader';
 import SearchBar from './components/SearchBar';
 import PaperList from './components/PaperList';
@@ -14,6 +14,8 @@ import KnowledgeTree from './components/KnowledgeTree';
 import BadgeGallery from './components/BadgeGallery';
 import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
+import ApiKeyModal from './components/ApiKeyModal';
+import { AlertTriangle, X } from 'lucide-react';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
@@ -25,12 +27,16 @@ const App: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<Theme>('light');
+  const [error, setError] = useState<string | null>(null);
   
   // Auth & Data State
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [readHistory, setReadHistory] = useState<ReadHistoryItem[]>([]);
   const [activeFilters, setActiveFilters] = useState<SearchFilters>({});
+  
+  // Admin/Private Mode State
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
 
   // Initialize Session from Local Storage
   useEffect(() => {
@@ -57,12 +63,14 @@ const App: React.FC = () => {
     setActiveFilters(filters);
     setView(AppView.LIST);
     setPapers([]);
+    setError(null);
     
     try {
       const results = await searchPapersFast(query, filters);
       setPapers(results);
-    } catch (error) {
-      console.error(error);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to search papers. Please try again.");
     } finally {
       setIsSearching(false);
     }
@@ -75,12 +83,14 @@ const App: React.FC = () => {
     setPaperContent(null);
     setIsLoadingContent(true);
     setIsChatOpen(false);
+    setError(null);
 
     try {
       const content = await generatePaperExplanation(paper);
       setPaperContent(content);
-    } catch (error) {
-      console.error(error);
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to generate content. Please check your API quota.");
       setPaperContent("Failed to generate content.");
     } finally {
       setIsLoadingContent(false);
@@ -94,15 +104,27 @@ const App: React.FC = () => {
   }, []);
 
   const handleGoHome = useCallback(() => {
-    setView(AppView.SEARCH);
-    setPapers([]);
-    setSearchQuery('');
-    setSelectedPaper(null);
-    setActiveFilters({});
+    // If private app, home should redirect to search only if logged in, else Landing
+    const activeUser = getCurrentUser();
+    if (activeUser) {
+      setView(AppView.SEARCH);
+      setPapers([]);
+      setSearchQuery('');
+      setSelectedPaper(null);
+      setActiveFilters({});
+    } else {
+      setView(AppView.LANDING);
+    }
   }, []);
 
   const handleStart = useCallback(() => {
-    setView(AppView.SEARCH);
+    // STRICT PRIVATE MODE: Must login to proceed
+    const activeUser = getCurrentUser();
+    if (activeUser) {
+      setView(AppView.SEARCH);
+    } else {
+      setView(AppView.AUTH);
+    }
   }, []);
 
   const handleLoginClick = useCallback(() => {
@@ -135,7 +157,7 @@ const App: React.FC = () => {
         setProfile(updatedProfile);
       }
     } else {
-      alert("Sign in to track your reading history and score Knowledge Points!");
+      // Should technically not happen in private mode, but safety fallback
       setView(AppView.AUTH);
     }
   }, [readHistory, user]);
@@ -171,7 +193,7 @@ const App: React.FC = () => {
           onSearch={handleSearch} 
           isSearching={isSearching} 
           currentQuery={searchQuery}
-          onGoHome={() => setView(AppView.LANDING)}
+          onGoHome={handleGoHome}
           currentTheme={theme}
           onThemeChange={setTheme}
           showSearchInput={view !== AppView.SEARCH && view !== AppView.LANDING}
@@ -181,6 +203,7 @@ const App: React.FC = () => {
           user={user}
           onLoginClick={handleLoginClick}
           onLogout={handleLogout}
+          onOpenKeySettings={() => setIsKeyModalOpen(true)}
         />
       )}
 
@@ -209,11 +232,6 @@ const App: React.FC = () => {
                       <p className="text-2xl font-serif font-black text-violet-900">{readHistory.length}</p>
                     </div>
                  </div>
-               )}
-               {!user && (
-                 <button onClick={handleLoginClick} className="text-xs text-amber-600 font-bold bg-amber-50 inline-block px-4 py-2 rounded-full border border-amber-200 hover:bg-amber-100 transition-colors uppercase tracking-widest">
-                   Join the Rank of Scholars
-                 </button>
                )}
              </div>
              <SearchBar variant="centered" onSearch={handleSearch} />
@@ -255,6 +273,22 @@ const App: React.FC = () => {
 
         {view === AppView.BADGES && (
           <BadgeGallery currentReadCount={readHistory.length} />
+        )}
+
+        {isKeyModalOpen && (
+          <ApiKeyModal onClose={() => setIsKeyModalOpen(false)} />
+        )}
+
+        {/* Global Error Toast */}
+        {error && (
+          <div className="fixed bottom-4 right-4 max-w-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl shadow-lg z-[100] animate-fade-in-up flex items-center gap-3">
+            <AlertTriangle className="shrink-0" size={20} />
+            <div className="flex-1">
+               <p className="text-sm font-bold">Error</p>
+               <p className="text-xs opacity-90">{error}</p>
+            </div>
+            <button onClick={() => setError(null)} className="hover:bg-red-100 p-1 rounded"><X size={16} /></button>
+          </div>
         )}
       </main>
     </div>

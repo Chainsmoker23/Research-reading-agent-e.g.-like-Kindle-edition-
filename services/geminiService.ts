@@ -1,12 +1,83 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Paper, SearchFilters } from '../types';
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+// Helper to get keys dynamically including user override
+const getApiKeys = () => {
+  const userKeys: string[] = [];
+  
+  if (typeof window !== 'undefined') {
+    // Support legacy key if exists
+    const legacyKey = localStorage.getItem('user_gemini_key');
+    if (legacyKey) userKeys.push(legacyKey);
+
+    // Support new indexed keys 1-5
+    for (let i = 1; i <= 5; i++) {
+      const key = localStorage.getItem(`user_gemini_key_${i}`);
+      if (key) userKeys.push(key);
+    }
+  }
+  
+  const envKeys = [
+    process.env.API_KEY,
+    process.env.API_KEY_2,
+    process.env.API_KEY_3,
+    process.env.API_KEY_4,
+    process.env.API_KEY_5
+  ];
+
+  // Prioritize user keys, then env keys. Deduplicate.
+  const allKeys = [...userKeys, ...envKeys];
+  
+  return [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
+};
 
 // Helper to sanitize JSON string if the model returns markdown code blocks
 const cleanJsonString = (str: string) => {
   return str.replace(/```json\n?|\n?```/g, '').trim();
+};
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Executes an AI operation with automatic failover across multiple API keys.
+ * If a key fails (e.g. quota exceeded), it proceeds to the next one with a small backoff.
+ */
+const runWithRotation = async <T>(
+  operation: (ai: GoogleGenAI) => Promise<T>
+): Promise<T> => {
+  let lastError: any;
+  const keysToTry = getApiKeys();
+
+  if (keysToTry.length === 0) {
+    console.warn("No API Keys provided in environment variables or user settings.");
+    keysToTry.push('');
+  }
+
+  for (let i = 0; i < keysToTry.length; i++) {
+    try {
+      const currentKey = keysToTry[i];
+      const ai = new GoogleGenAI({ apiKey: currentKey });
+      return await operation(ai);
+    } catch (error: any) {
+      lastError = error;
+      const msg = error.message || '';
+      const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('exhausted');
+      
+      console.warn(`Gemini API attempt failed with Key #${i + 1} (${isQuota ? 'Quota/Rate Limit' : 'Error'}): ${msg}`);
+      
+      // If it's a quota error, wait a bit before trying the next key.
+      // If keys share a project, this delay helps the bucket drain.
+      if (isQuota) {
+        await delay(1000 + (i * 500));
+      }
+      
+      // If this was the last key, stop and throw
+      if (i === keysToTry.length - 1) break;
+    }
+  }
+
+  throw lastError || new Error("All provided API keys failed.");
 };
 
 export const searchPapers = async (query: string, filters?: SearchFilters): Promise<Paper[]> => {
@@ -23,7 +94,7 @@ export const searchPapers = async (query: string, filters?: SearchFilters): Prom
       }
     }
 
-    const response = await ai.models.generateContent({
+    const response = await runWithRotation<GenerateContentResponse>((ai) => ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Find 5 relevant and high-quality research papers on "${query}". 
       
@@ -60,7 +131,7 @@ export const searchPapers = async (query: string, filters?: SearchFilters): Prom
           }
         }
       }
-    });
+    }));
 
     const text = response.text || "[]";
     const data = JSON.parse(cleanJsonString(text));
@@ -72,14 +143,14 @@ export const searchPapers = async (query: string, filters?: SearchFilters): Prom
     }));
 
   } catch (error) {
-    console.error("Search failed:", error);
-    throw new Error("Failed to search papers. Please try again.");
+    console.error("Search failed after retries:", error);
+    throw error; // Re-throw so UI can show the message
   }
 };
 
 export const generatePaperExplanation = async (paper: Paper): Promise<string> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await runWithRotation<GenerateContentResponse>((ai) => ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: `You are an expert academic mentor. I want to read the paper "${paper.title}" by ${paper.authors} (${paper.year}).
       
@@ -101,22 +172,17 @@ export const generatePaperExplanation = async (paper: Paper): Promise<string> =>
         tools: [{ googleSearch: {} }],
         thinkingConfig: { thinkingBudget: 2048 }, // Allow some thinking for structuring the explanation
       }
-    });
+    }));
 
     return response.text || "Could not generate explanation.";
   } catch (error) {
-    console.error("Explanation failed:", error);
-    throw new Error("Failed to generate paper explanation.");
+    console.error("Explanation failed after retries:", error);
+    throw error;
   }
 };
 
 export const askQuestionAboutPaper = async (paper: Paper, question: string, history: {role: string, text: string}[]): Promise<string> => {
   try {
-    // Construct the prompt history
-    // We don't send the full history to the API chat method to keep it stateless here, 
-    // or we can use a multi-turn approach. 
-    // Given the complexity of "grounding in the paper", we'll do a single turn generation with context.
-    
     const contextPrompt = `
       You are an academic reading assistant. The user is currently reading the paper:
       "${paper.title}" by ${paper.authors}.
@@ -129,17 +195,17 @@ export const askQuestionAboutPaper = async (paper: Paper, question: string, hist
       User Question: ${question}
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await runWithRotation<GenerateContentResponse>((ai) => ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: contextPrompt,
       config: {
         tools: [{ googleSearch: {} }], // Enable search to look up specific details of the paper to answer accurately
       }
-    });
+    }));
 
     return response.text || "I couldn't find an answer to that.";
   } catch (error) {
-    console.error("Q&A failed:", error);
-    return "Sorry, I encountered an error while trying to answer your question.";
+    console.error("Q&A failed after retries:", error);
+    return "Sorry, I encountered an error while trying to answer your question. Please check your network or API quota.";
   }
 };

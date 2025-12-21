@@ -1,12 +1,78 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Paper, SearchFilters } from '../types';
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+// Helper to get keys dynamically including user override
+const getApiKeys = () => {
+  const userKeys: string[] = [];
+  
+  if (typeof window !== 'undefined') {
+    // Legacy support
+    const legacy = localStorage.getItem('user_gemini_key');
+    if (legacy) userKeys.push(legacy);
+    
+    // Multi-key support (1-5)
+    for (let i = 1; i <= 5; i++) {
+      const k = localStorage.getItem(`user_gemini_key_${i}`);
+      if (k) userKeys.push(k);
+    }
+  }
+  
+  const envKeys = [
+    process.env.API_KEY,
+    process.env.API_KEY_2,
+    process.env.API_KEY_3,
+    process.env.API_KEY_4,
+    process.env.API_KEY_5
+  ];
+
+  // User keys first, then env keys. Deduplicate.
+  const allKeys = [...userKeys, ...envKeys];
+  
+  return [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
+};
 
 // Helper to sanitize JSON string
 const cleanJsonString = (str: string) => {
   return str.replace(/```json\n?|\n?```/g, '').trim();
+};
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Executes an AI operation with automatic failover across multiple API keys.
+ */
+const runWithRotation = async <T>(
+  operation: (ai: GoogleGenAI) => Promise<T>
+): Promise<T> => {
+  let lastError: any;
+  const keysToTry = getApiKeys();
+
+  if (keysToTry.length === 0) {
+    keysToTry.push('');
+  }
+
+  for (let i = 0; i < keysToTry.length; i++) {
+    try {
+      const currentKey = keysToTry[i];
+      const ai = new GoogleGenAI({ apiKey: currentKey });
+      return await operation(ai);
+    } catch (error: any) {
+      lastError = error;
+      const msg = error.message || '';
+      const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('exhausted');
+
+      console.warn(`Parallel Search API attempt failed with Key #${i + 1} (${isQuota ? 'Quota' : 'Error'}): ${msg}`);
+      
+      if (isQuota) {
+        await delay(1000 + (i * 500));
+      }
+
+      if (i === keysToTry.length - 1) break;
+    }
+  }
+
+  throw lastError || new Error("All provided API keys failed.");
 };
 
 async function fetchPapersSubset(
@@ -47,7 +113,7 @@ async function fetchPapersSubset(
             - status (string, strictly "${statusValue}")
         `;
 
-        const response = await ai.models.generateContent({
+        const response = await runWithRotation<GenerateContentResponse>((ai) => ai.models.generateContent({
             model: "gemini-3-flash-preview",
             contents: prompt,
             config: {
@@ -69,12 +135,12 @@ async function fetchPapersSubset(
                     }
                 }
             }
-        });
+        }));
 
         const text = response.text || "[]";
         return JSON.parse(cleanJsonString(text));
     } catch (e) {
-        console.warn(`Parallel search subset (${type}) failed`, e);
+        console.warn(`Parallel search subset (${type}) failed after retries`, e);
         // Return empty array on failure so other parallel request can still succeed
         return [];
     }
@@ -92,7 +158,7 @@ export const searchPapersFast = async (query: string, filters?: SearchFilters): 
     
     // Fallback if both fail
     if (combined.length === 0) {
-        throw new Error("No papers found in parallel search.");
+        throw new Error("No papers found. Please check your API usage or try different keywords.");
     }
 
     // Add unique IDs and dedup based on title (simple check)
