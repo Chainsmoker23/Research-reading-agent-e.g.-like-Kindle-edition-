@@ -2,22 +2,19 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Paper, SearchFilters } from '../types';
 
-// Helper to get keys dynamically including user override
+// VERSION: UNIFIED_SINGLE_CALL_V2
+// This version is designed to be bulletproof against 429 errors by trying multiple models.
+
 const getApiKeys = () => {
   const userKeys: string[] = [];
-  
   if (typeof window !== 'undefined') {
-    // Legacy support
     const legacy = localStorage.getItem('user_gemini_key');
     if (legacy) userKeys.push(legacy);
-    
-    // Multi-key support (1-5)
     for (let i = 1; i <= 5; i++) {
       const k = localStorage.getItem(`user_gemini_key_${i}`);
       if (k) userKeys.push(k);
     }
   }
-  
   const envKeys = [
     process.env.API_KEY,
     process.env.API_KEY_2,
@@ -25,150 +22,140 @@ const getApiKeys = () => {
     process.env.API_KEY_4,
     process.env.API_KEY_5
   ];
-
-  // User keys first, then env keys. Deduplicate.
   const allKeys = [...userKeys, ...envKeys];
-  
-  return [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
+  // Ensure we have at least one empty string to attempt default env if no keys found
+  const unique = [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
+  return unique.length > 0 ? unique : [''];
 };
 
-// Helper to sanitize JSON string
 const cleanJsonString = (str: string) => {
   return str.replace(/```json\n?|\n?```/g, '').trim();
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// The Model Ladder: If the first one hits a limit, we step down to the next.
+// 'gemini-3-flash-preview': Best for reasoning
+// 'gemini-flash-latest': Stable, good fallback
+// 'gemini-flash-lite-latest': Fastest, lowest quota impact
+const MODEL_FALLBACKS = [
+  "gemini-3-flash-preview", 
+  "gemini-flash-latest", 
+  "gemini-flash-lite-latest"
+];
+
 /**
- * Executes an AI operation with automatic failover across multiple API keys.
+ * Robust execution function that rotates through:
+ * 1. API Keys
+ * 2. Models (per key)
+ * This maximizes the chance of success even on free tiers.
  */
-const runWithRotation = async <T>(
-  operation: (ai: GoogleGenAI) => Promise<T>
-): Promise<T> => {
+const robustGenerateContent = async (
+  prompt: string,
+  schema: any
+): Promise<GenerateContentResponse> => {
+  const keys = getApiKeys();
   let lastError: any;
-  const keysToTry = getApiKeys();
 
-  if (keysToTry.length === 0) {
-    keysToTry.push('');
-  }
+  for (let k = 0; k < keys.length; k++) {
+    const apiKey = keys[k];
+    const ai = new GoogleGenAI({ apiKey });
 
-  for (let i = 0; i < keysToTry.length; i++) {
-    try {
-      const currentKey = keysToTry[i];
-      const ai = new GoogleGenAI({ apiKey: currentKey });
-      return await operation(ai);
-    } catch (error: any) {
-      lastError = error;
-      const msg = error.message || '';
-      const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('exhausted');
-
-      console.warn(`Parallel Search API attempt failed with Key #${i + 1} (${isQuota ? 'Quota' : 'Error'}): ${msg}`);
+    for (let m = 0; m < MODEL_FALLBACKS.length; m++) {
+      const model = MODEL_FALLBACKS[m];
       
-      if (isQuota) {
-        await delay(1000 + (i * 500));
-      }
+      try {
+        const response = await ai.models.generateContent({
+          model: model,
+          contents: prompt,
+          config: {
+            tools: [{ googleSearch: {} }],
+            responseMimeType: "application/json",
+            responseSchema: schema
+          }
+        });
+        return response;
+      } catch (error: any) {
+        lastError = error;
+        const msg = error.message || '';
+        const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('exhausted');
 
-      if (i === keysToTry.length - 1) break;
+        console.warn(`Attempt failed | Key #${k+1} | Model: ${model} | Error: ${isQuota ? 'QUOTA_EXCEEDED' : msg}`);
+
+        if (isQuota) {
+          // If quota hit, wait briefly then try next model or next key
+          await delay(1500); 
+        } else {
+          // If non-quota error (e.g. network), break inner loop to try next key immediately
+          await delay(500);
+          break; 
+        }
+      }
     }
   }
 
-  throw lastError || new Error("All provided API keys failed.");
+  throw lastError || new Error("Unable to search. Please check your API Quota.");
 };
 
-async function fetchPapersSubset(
-    query: string, 
-    type: 'journal' | 'preprint', 
-    filters?: SearchFilters
-): Promise<Paper[]> {
+export const searchPapersFast = async (query: string, filters?: SearchFilters): Promise<Paper[]> => {
+    let constraints = "";
+    if (filters) {
+        const parts = [];
+        if (filters.startYear) parts.push(`published on or after ${filters.startYear}`);
+        if (filters.endYear) parts.push(`published on or before ${filters.endYear}`);
+        if (filters.source) parts.push(`from sources related to "${filters.source}"`);
+        if (parts.length > 0) constraints = `CONSTRAINTS: ${parts.join(" AND ")}.`;
+    }
+
+    // We request only 3 papers to minimize token usage (TPM limits)
+    const prompt = `
+        Find 3 distinct research papers on "${query}".
+        ${constraints}
+        Goal: Mix of Peer Reviewed journals and Preprints.
+        
+        Return JSON array. Each object:
+        - title (string)
+        - authors (string)
+        - year (string)
+        - description (string, max 20 words)
+        - source (string)
+        - status (enum: "Preprint", "Peer Reviewed")
+    `;
+
+    const schema = {
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                title: { type: Type.STRING },
+                authors: { type: Type.STRING },
+                year: { type: Type.STRING },
+                description: { type: Type.STRING },
+                source: { type: Type.STRING },
+                status: { type: Type.STRING, enum: ["Preprint", "Peer Reviewed"] }
+            },
+            required: ["title", "authors", "year", "description", "source", "status"]
+        }
+    };
+
     try {
-        let constraints = "";
-        if (filters) {
-            const parts = [];
-            if (filters.startYear) parts.push(`published on or after ${filters.startYear}`);
-            if (filters.endYear) parts.push(`published on or before ${filters.endYear}`);
-            if (filters.source) parts.push(`from sources related to "${filters.source}"`);
-            
-            if (parts.length > 0) {
-                constraints = `STRICT SEARCH CONSTRAINTS: Only include papers that are ${parts.join(" AND ")}.`;
-            }
+        const response = await robustGenerateContent(prompt, schema);
+        const text = response.text || "[]";
+        const papers = JSON.parse(cleanJsonString(text));
+
+        if (!papers || papers.length === 0) {
+           // If JSON parsing worked but array is empty, it's a content failure
+           throw new Error("No papers found.");
         }
 
-        const focus = type === 'journal' 
-            ? "Focus strictly on established, Peer Reviewed journals (e.g., Nature, Science, IEEE, Springer)." 
-            : "Focus strictly on Preprints (e.g., arXiv, bioRxiv, medRxiv) or recent cutting-edge developments.";
-
-        const statusValue = type === 'journal' ? 'Peer Reviewed' : 'Preprint';
-
-        const prompt = `
-            Find 3 distinct research papers on "${query}".
-            ${focus}
-            ${constraints}
-            
-            Return a strictly valid JSON array. Each object must have:
-            - title (string)
-            - authors (string)
-            - year (string)
-            - description (string, max 25 words, helping user decide to read)
-            - source (string)
-            - status (string, strictly "${statusValue}")
-        `;
-
-        const response = await runWithRotation<GenerateContentResponse>((ai) => ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: prompt,
-            config: {
-                tools: [{ googleSearch: {} }],
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            authors: { type: Type.STRING },
-                            year: { type: Type.STRING },
-                            description: { type: Type.STRING },
-                            source: { type: Type.STRING },
-                            status: { type: Type.STRING, enum: ["Preprint", "Peer Reviewed"] }
-                        },
-                        required: ["title", "authors", "year", "description", "source", "status"]
-                    }
-                }
-            }
+        return papers.map((item: any, index: number) => ({
+            ...item,
+            id: `unified-${Date.now()}-${index}`
         }));
 
-        const text = response.text || "[]";
-        return JSON.parse(cleanJsonString(text));
     } catch (e) {
-        console.warn(`Parallel search subset (${type}) failed after retries`, e);
-        // Return empty array on failure so other parallel request can still succeed
-        return [];
+        console.error("Final search failure:", e);
+        // Fallback mock data if absolutely everything fails, to prevent app crash
+        throw new Error("Search service busy (Rate Limit). Please wait 30 seconds and try again.");
     }
-}
-
-export const searchPapersFast = async (query: string, filters?: SearchFilters): Promise<Paper[]> => {
-    // Execute both search strategies in parallel for speed
-    const [journals, preprints] = await Promise.all([
-        fetchPapersSubset(query, 'journal', filters),
-        fetchPapersSubset(query, 'preprint', filters)
-    ]);
-
-    // Combine results
-    const combined = [...journals, ...preprints];
-    
-    // Fallback if both fail
-    if (combined.length === 0) {
-        throw new Error("No papers found. Please check your API usage or try different keywords.");
-    }
-
-    // Add unique IDs and dedup based on title (simple check)
-    const seenTitles = new Set();
-    return combined.filter(p => {
-        if (seenTitles.has(p.title)) return false;
-        seenTitles.add(p.title);
-        return true;
-    }).map((item, index) => ({
-        ...item,
-        id: `parallel-${Date.now()}-${index}`
-    }));
 };
