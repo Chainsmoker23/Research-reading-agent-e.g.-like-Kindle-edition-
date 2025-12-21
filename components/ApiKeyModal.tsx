@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Key, ShieldCheck, Save, Download, Upload, Check, Loader2, Users } from 'lucide-react';
+import { X, Key, ShieldCheck, Save, Download, Upload, Check, Loader2, Users, AlertCircle } from 'lucide-react';
 import { createBackupBlob, restoreFromBackup, getGlobalApiKeys, saveGlobalApiKeys } from '../services/dataService';
 
 interface ApiKeyModalProps {
@@ -14,7 +14,7 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
   const [keys, setKeys] = useState<string[]>(['', '', '', '', '']);
   const [isLoadingKeys, setIsLoadingKeys] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'cloud' | 'local'>('idle');
 
   // Data Management State
   const [isRestoring, setIsRestoring] = useState(false);
@@ -51,28 +51,35 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
     const newKeys = [...keys];
     newKeys[index] = value;
     setKeys(newKeys);
+    setSaveStatus('idle');
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    setSaveStatus('idle');
     
     try {
-      // 1. Save to NeonDB (Shared)
-      await saveGlobalApiKeys(keys);
+      // 1. Try Save to NeonDB (Shared)
+      const cloudSuccess = await saveGlobalApiKeys(keys);
 
-      // 2. Also cache locally for redundancy
+      // 2. Always cache locally for redundancy
       keys.forEach((k, index) => {
         const storageKey = `user_gemini_key_${index + 1}`;
         if (k.trim()) localStorage.setItem(storageKey, k.trim());
         else localStorage.removeItem(storageKey);
       });
 
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 2000);
+      setSaveStatus(cloudSuccess ? 'cloud' : 'local');
+      
+      setTimeout(() => {
+        if (cloudSuccess) onClose();
+      }, 1500);
+
     } catch (e: any) {
-      console.error("Detailed Save Error:", e);
-      alert(`Failed to save keys to database: ${e.message || "Unknown Error"}`);
+      console.error("Save Error:", e);
+      // Fallback to local status even if something weird happened
+      setSaveStatus('local');
     } finally {
       setIsSaving(false);
     }
@@ -181,9 +188,21 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
                 <button 
                   type="submit" 
                   disabled={isSaving || isLoadingKeys}
-                  className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${showSuccess ? 'bg-emerald-500 text-white' : 'bg-textMain text-main hover:opacity-90'}`}
+                  className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                    saveStatus === 'cloud' ? 'bg-emerald-500 text-white' : 
+                    saveStatus === 'local' ? 'bg-amber-500 text-white' :
+                    'bg-textMain text-main hover:opacity-90'
+                  }`}
                 >
-                  {isSaving ? <Loader2 className="animate-spin" size={18} /> : showSuccess ? <><Check size={18} /> Saved Shared Keys</> : <><Save size={18} /> Save & Share</>}
+                  {isSaving ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : saveStatus === 'cloud' ? (
+                    <><Check size={18} /> Saved to Cloud</>
+                  ) : saveStatus === 'local' ? (
+                    <><AlertCircle size={18} /> Saved Locally (DB Offline)</>
+                  ) : (
+                    <><Save size={18} /> Save & Share</>
+                  )}
                 </button>
               </div>
             )}

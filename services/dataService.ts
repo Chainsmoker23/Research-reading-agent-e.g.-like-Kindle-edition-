@@ -28,8 +28,8 @@ const executeSql = async (text: string, params?: any[]) => {
     const result = await (sql as any)(text, params || []);
     return { rows: result };
   } catch (err: any) {
-    // We log the error but don't throw it, so the app can fall back to local storage
-    console.warn("NeonDB Connection Error (Using Local Fallback):", err.message);
+    // Log warning but do not throw, allowing app to degrade to local storage
+    console.warn("NeonDB Ops Error:", err.message);
     return null;
   }
 };
@@ -59,7 +59,7 @@ export const getGlobalApiKeys = async (): Promise<string[]> => {
   return ['', '', '', '', ''];
 };
 
-export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
+export const saveGlobalApiKeys = async (keys: string[]): Promise<boolean> => {
   // Try DB
   const result = await executeSql(`
     INSERT INTO system_settings (key_name, key_value) 
@@ -68,13 +68,8 @@ export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
     DO UPDATE SET key_value = $1
   `, [JSON.stringify(keys)]);
 
-  if (!result) {
-    // If DB failed, throw error only if you want to notify user, 
-    // OR just swallow it if LocalStorage is enough.
-    // The user saw "Failed to save...", so let's throw a cleaner error or just let LocalStorage handle it.
-    // We will throw a specific warning so the UI knows DB failed but LocalStorage might have worked.
-    throw new Error("Database unreachable. Keys saved to your browser only.");
-  }
+  // Return true if DB save succeeded, false otherwise
+  return !!result;
 };
 
 // --- LOGGING ---
@@ -83,7 +78,7 @@ export const logActivity = async (action: string, details: string) => {
   const userId = getCurrentUserId();
   if (userId === 'guest') return;
 
-  // Fire and forget, no await
+  // Fire and forget
   executeSql(
     `INSERT INTO activity_log (user_id, action_type, details) VALUES ($1, $2, $3)`,
     [userId, action, details]
@@ -131,7 +126,6 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
         }
       }));
 
-      // Simple merge strategy: if DB has more, use DB
       if (dbHistory.length > history.length) {
         history = dbHistory;
       }
@@ -248,4 +242,3 @@ export const restoreFromBackup = async (file: File): Promise<boolean> => {
     reader.readAsText(file);
   });
 };
-    
