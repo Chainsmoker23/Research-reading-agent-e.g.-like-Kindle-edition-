@@ -1,30 +1,9 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Paper, SearchFilters } from '../types';
+import { getGlobalApiKeys } from './dataService';
 
-// VERSION: ROBUST_FALLBACK_V2
-
-const getApiKeys = () => {
-  const userKeys: string[] = [];
-  if (typeof window !== 'undefined') {
-    const legacy = localStorage.getItem('user_gemini_key');
-    if (legacy) userKeys.push(legacy);
-    for (let i = 1; i <= 5; i++) {
-      const k = localStorage.getItem(`user_gemini_key_${i}`);
-      if (k) userKeys.push(k);
-    }
-  }
-  const envKeys = [
-    process.env.API_KEY,
-    process.env.API_KEY_2,
-    process.env.API_KEY_3,
-    process.env.API_KEY_4,
-    process.env.API_KEY_5
-  ];
-  const allKeys = [...userKeys, ...envKeys];
-  const unique = [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
-  return unique.length > 0 ? unique : [''];
-};
+// VERSION: ROBUST_FALLBACK_V3 (Shared Keys)
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -34,14 +13,24 @@ const MODEL_FALLBACKS = [
   "gemini-flash-lite-latest"
 ];
 
-/**
- * Robust execution function that rotates through API Keys and Models.
- */
 const robustGenerateContent = async (
   contents: string,
   config: any = {}
 ): Promise<GenerateContentResponse> => {
-  const keys = getApiKeys();
+  // Fetch keys asynchronously from DB (Shared)
+  const dbKeys = await getGlobalApiKeys();
+  const envKeys = [
+    process.env.API_KEY,
+    process.env.API_KEY_2,
+    process.env.API_KEY_3,
+    process.env.API_KEY_4,
+    process.env.API_KEY_5
+  ];
+  
+  const allKeys = [...dbKeys, ...envKeys];
+  const keys = [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
+  if (keys.length === 0) keys.push('');
+
   let lastError: any;
 
   for (let k = 0; k < keys.length; k++) {
@@ -66,7 +55,7 @@ const robustGenerateContent = async (
         console.warn(`Explanation failed | Key #${k+1} | Model: ${model} | Error: ${isQuota ? 'QUOTA_EXCEEDED' : msg}`);
 
         if (isQuota) {
-          await delay(2000); // Wait longer for explanations
+          await delay(2000); 
         } else {
           await delay(500);
           break; 
@@ -78,7 +67,6 @@ const robustGenerateContent = async (
 };
 
 export const searchPapers = async (query: string, filters?: SearchFilters): Promise<Paper[]> => {
-  // Deprecated stub
   return [];
 };
 

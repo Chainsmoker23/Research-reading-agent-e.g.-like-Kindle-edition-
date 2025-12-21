@@ -1,32 +1,10 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Paper, SearchFilters } from '../types';
+import { getGlobalApiKeys } from './dataService';
 
-// VERSION: UNIFIED_SINGLE_CALL_V2
-// This version is designed to be bulletproof against 429 errors by trying multiple models.
-
-const getApiKeys = () => {
-  const userKeys: string[] = [];
-  if (typeof window !== 'undefined') {
-    const legacy = localStorage.getItem('user_gemini_key');
-    if (legacy) userKeys.push(legacy);
-    for (let i = 1; i <= 5; i++) {
-      const k = localStorage.getItem(`user_gemini_key_${i}`);
-      if (k) userKeys.push(k);
-    }
-  }
-  const envKeys = [
-    process.env.API_KEY,
-    process.env.API_KEY_2,
-    process.env.API_KEY_3,
-    process.env.API_KEY_4,
-    process.env.API_KEY_5
-  ];
-  const allKeys = [...userKeys, ...envKeys];
-  // Ensure we have at least one empty string to attempt default env if no keys found
-  const unique = [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
-  return unique.length > 0 ? unique : [''];
-};
+// VERSION: UNIFIED_SINGLE_CALL_V3
+// Now supports Shared Database Keys
 
 const cleanJsonString = (str: string) => {
   return str.replace(/```json\n?|\n?```/g, '').trim();
@@ -34,27 +12,32 @@ const cleanJsonString = (str: string) => {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// The Model Ladder: If the first one hits a limit, we step down to the next.
-// 'gemini-3-flash-preview': Best for reasoning
-// 'gemini-flash-latest': Stable, good fallback
-// 'gemini-flash-lite-latest': Fastest, lowest quota impact
 const MODEL_FALLBACKS = [
   "gemini-3-flash-preview", 
   "gemini-flash-latest", 
   "gemini-flash-lite-latest"
 ];
 
-/**
- * Robust execution function that rotates through:
- * 1. API Keys
- * 2. Models (per key)
- * This maximizes the chance of success even on free tiers.
- */
 const robustGenerateContent = async (
   prompt: string,
   schema: any
 ): Promise<GenerateContentResponse> => {
-  const keys = getApiKeys();
+  // Fetch keys asynchronously from DB (Shared)
+  const dbKeys = await getGlobalApiKeys();
+  const envKeys = [
+    process.env.API_KEY,
+    process.env.API_KEY_2,
+    process.env.API_KEY_3,
+    process.env.API_KEY_4,
+    process.env.API_KEY_5
+  ];
+  
+  // Combine Shared DB keys + Env keys + Local legacy
+  const allKeys = [...dbKeys, ...envKeys];
+  const keys = [...new Set(allKeys)].filter((key): key is string => !!key && key.trim().length > 0);
+  
+  if (keys.length === 0) keys.push(''); 
+
   let lastError: any;
 
   for (let k = 0; k < keys.length; k++) {
@@ -83,10 +66,8 @@ const robustGenerateContent = async (
         console.warn(`Attempt failed | Key #${k+1} | Model: ${model} | Error: ${isQuota ? 'QUOTA_EXCEEDED' : msg}`);
 
         if (isQuota) {
-          // If quota hit, wait briefly then try next model or next key
           await delay(1500); 
         } else {
-          // If non-quota error (e.g. network), break inner loop to try next key immediately
           await delay(500);
           break; 
         }
@@ -107,7 +88,6 @@ export const searchPapersFast = async (query: string, filters?: SearchFilters): 
         if (parts.length > 0) constraints = `CONSTRAINTS: ${parts.join(" AND ")}.`;
     }
 
-    // We request only 3 papers to minimize token usage (TPM limits)
     const prompt = `
         Find 3 distinct research papers on "${query}".
         ${constraints}
@@ -144,7 +124,6 @@ export const searchPapersFast = async (query: string, filters?: SearchFilters): 
         const papers = JSON.parse(cleanJsonString(text));
 
         if (!papers || papers.length === 0) {
-           // If JSON parsing worked but array is empty, it's a content failure
            throw new Error("No papers found.");
         }
 
@@ -155,7 +134,6 @@ export const searchPapersFast = async (query: string, filters?: SearchFilters): 
 
     } catch (e) {
         console.error("Final search failure:", e);
-        // Fallback mock data if absolutely everything fails, to prevent app crash
         throw new Error("Search service busy (Rate Limit). Please wait 30 seconds and try again.");
     }
 };

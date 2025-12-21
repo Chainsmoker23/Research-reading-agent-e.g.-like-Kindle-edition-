@@ -13,19 +13,13 @@ const HISTORY_KEY = 'parallax_history';
 const PROFILES_KEY = 'parallax_profiles';
 
 // --- CONFIGURATION ---
-// Default connection string for the app instance.
-// In a public production app, this should be an environment variable to avoid exposure.
+// Hardcoded per user request
 const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-pond-abyorp16-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 
 // --- DB CONNECTION ---
 
 const getDbPool = () => {
-  if (typeof window === 'undefined') return null;
-  // Use user-provided string from settings, or fall back to the built-in default
-  const connectionString = localStorage.getItem('neon_db_url') || DEFAULT_NEON_URL;
-  if (!connectionString) return null;
-  
-  return new Pool({ connectionString });
+  return new Pool({ connectionString: DEFAULT_NEON_URL });
 };
 
 // --- HELPER METHODS ---
@@ -41,33 +35,101 @@ const getCurrentUserId = () => {
 };
 
 /**
- * Logs an action to NeonDB 'activity_log' table.
+ * Ensures necessary tables exist.
+ * We call this lazily when performing DB operations to ensure robustness after wipes.
  */
+const ensureTablesExist = async (pool: Pool) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key_name TEXT PRIMARY KEY,
+        key_value TEXT
+      );
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        user_id TEXT PRIMARY KEY,
+        score INTEGER DEFAULT 0,
+        rank TEXT,
+        last_active TIMESTAMP DEFAULT NOW(),
+        joined_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS reading_history (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT,
+        paper_title TEXT,
+        paper_authors TEXT,
+        paper_year TEXT,
+        paper_description TEXT,
+        paper_source TEXT,
+        read_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, paper_title)
+      );
+      CREATE TABLE IF NOT EXISTS activity_log (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT,
+        action_type TEXT,
+        details TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+  } catch (e) {
+    console.error("Error initializing tables:", e);
+  }
+};
+
+// --- SHARED API KEY MANAGEMENT ---
+
+export const getGlobalApiKeys = async (): Promise<string[]> => {
+  const pool = getDbPool();
+  try {
+    // Attempt to fetch
+    const { rows } = await pool.query(`SELECT key_value FROM system_settings WHERE key_name = 'shared_api_keys'`);
+    if (rows.length > 0) {
+      return JSON.parse(rows[0].key_value);
+    }
+  } catch (e: any) {
+    // If table doesn't exist yet, try to create it and return empty
+    if (e.message?.includes('relation "system_settings" does not exist')) {
+      await ensureTablesExist(pool);
+    }
+  }
+  return ['', '', '', '', ''];
+};
+
+export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
+  const pool = getDbPool();
+  await ensureTablesExist(pool);
+  
+  await pool.query(`
+    INSERT INTO system_settings (key_name, key_value) 
+    VALUES ('shared_api_keys', $1)
+    ON CONFLICT (key_name) 
+    DO UPDATE SET key_value = $1
+  `, [JSON.stringify(keys)]);
+};
+
+// --- LOGGING ---
+
 export const logActivity = async (action: string, details: string) => {
   const userId = getCurrentUserId();
   const pool = getDbPool();
   
   if (userId === 'guest') return;
 
-  console.log(`[Activity] ${userId} - ${action}: ${details}`);
-
   if (pool) {
     try {
-      // 1. Log the specific activity
       await pool.query(
         `INSERT INTO activity_log (user_id, action_type, details) VALUES ($1, $2, $3)`,
         [userId, action, details]
       );
       
-      // 2. Update the user's last_active timestamp
-      // We use INSERT ... ON CONFLICT to handle cases where user might not exist in DB yet
       await pool.query(
         `INSERT INTO user_profiles (user_id, last_active) VALUES ($1, NOW()) 
          ON CONFLICT (user_id) DO UPDATE SET last_active = NOW()`,
         [userId]
       );
     } catch (e) {
-      console.warn("Failed to log activity to NeonDB. Check connection.", e);
+      // If fails, try init tables once
+      await ensureTablesExist(pool);
     }
   }
 };
@@ -76,19 +138,16 @@ export const logActivity = async (action: string, details: string) => {
 
 export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
   const userId = getCurrentUserId();
+  const pool = getDbPool();
   let history: ReadHistoryItem[] = [];
 
-  // 1. Try Loading from LocalStorage (Fastest)
+  // Local Fallback first
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     const allHistory = raw ? JSON.parse(raw) : {};
     history = allHistory[userId] || [];
-  } catch (error) {
-    console.warn("LocalStorage corrupted", error);
-  }
+  } catch (e) {}
 
-  // 2. Background Sync with NeonDB
-  const pool = getDbPool();
   if (pool && userId !== 'guest') {
     try {
       const { rows } = await pool.query(
@@ -96,7 +155,6 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
         [userId]
       );
       
-      // Map DB rows to app type
       const dbHistory: ReadHistoryItem[] = rows.map((row: any) => ({
         id: row.id.toString(),
         timestamp: new Date(row.read_at).getTime(),
@@ -107,21 +165,16 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
           year: row.paper_year,
           description: row.paper_description,
           source: row.paper_source,
-          status: 'Peer Reviewed' // Default if not stored
+          status: 'Peer Reviewed'
         }
       }));
 
-      // Simple sync strategy: if DB has more, trust DB.
       if (dbHistory.length >= history.length) {
         history = dbHistory;
-        // Update local cache to match DB
-        const raw = localStorage.getItem(HISTORY_KEY);
-        const allHistory = raw ? JSON.parse(raw) : {};
-        allHistory[userId] = history;
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(allHistory));
       }
     } catch (e) {
-      console.warn("NeonDB History Sync Failed", e);
+       // Silent fail or init tables
+       await ensureTablesExist(pool);
     }
   }
 
@@ -130,44 +183,41 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
 
 export const saveReadPaper = async (paper: Paper): Promise<ReadHistoryItem> => {
   const userId = getCurrentUserId();
+  
+  const newItem: ReadHistoryItem = {
+    id: Date.now().toString(),
+    paper,
+    timestamp: Date.now()
+  };
 
-  // 1. Save to LocalStorage immediately for UI responsiveness
-  let newItem: ReadHistoryItem;
+  // Local Save
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     const allHistory = raw ? JSON.parse(raw) : {};
     const userHistory: ReadHistoryItem[] = allHistory[userId] || [];
+    if (!userHistory.find(h => h.paper.title === paper.title)) {
+      allHistory[userId] = [newItem, ...userHistory];
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(allHistory));
+    }
+  } catch (e) {}
 
-    const existing = userHistory.find(h => h.paper.title === paper.title);
-    if (existing) return existing;
-
-    newItem = {
-      id: Date.now().toString(),
-      paper,
-      timestamp: Date.now()
-    };
-
-    allHistory[userId] = [newItem, ...userHistory];
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(allHistory));
-  } catch (error) {
-    throw new Error("Could not save to local storage.");
-  }
-
-  // 2. Save to NeonDB (Async)
+  // DB Save
   const pool = getDbPool();
   if (pool && userId !== 'guest') {
-    // We don't await this so the UI doesn't block
-    pool.query(
-      `INSERT INTO reading_history (user_id, paper_title, paper_authors, paper_year, paper_description, paper_source)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (user_id, paper_title) DO NOTHING`,
-      [userId, paper.title, paper.authors, paper.year, paper.description, paper.source]
-    ).then(async () => {
+    try {
+      await ensureTablesExist(pool);
+      await pool.query(
+        `INSERT INTO reading_history (user_id, paper_title, paper_authors, paper_year, paper_description, paper_source)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (user_id, paper_title) DO NOTHING`,
+        [userId, paper.title, paper.authors, paper.year, paper.description, paper.source]
+      );
       await logActivity('READ_PAPER', paper.title);
       await updateUserScore(100); 
-    }).catch(err => console.error("NeonDB Save Error", err));
+    } catch (err) {
+      console.error("NeonDB Save Error", err);
+    }
   } else {
-    // Fallback: just update local score if no DB
     await updateUserScore(100);
   }
 
@@ -177,7 +227,6 @@ export const saveReadPaper = async (paper: Paper): Promise<ReadHistoryItem> => {
 export const getUserProfile = async (): Promise<UserProfile> => {
   const userId = getCurrentUserId();
   
-  // Default Profile
   let profile: UserProfile = {
     id: userId,
     score: 0,
@@ -185,20 +234,11 @@ export const getUserProfile = async (): Promise<UserProfile> => {
     joinedAt: Date.now()
   };
 
-  // 1. Load Local
-  try {
-    const raw = localStorage.getItem(PROFILES_KEY);
-    const allProfiles = raw ? JSON.parse(raw) : {};
-    if (allProfiles[userId]) {
-      profile = allProfiles[userId];
-    }
-  } catch (e) {}
-
-  // 2. Sync with DB
   const pool = getDbPool();
   if (pool && userId !== 'guest') {
     try {
-      // Ensure user exists
+      await ensureTablesExist(pool);
+      // Create if not exists
       await pool.query(
         `INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, 
         [userId]
@@ -210,19 +250,10 @@ export const getUserProfile = async (): Promise<UserProfile> => {
       );
       
       if (rows.length > 0) {
-        // Trust DB score if it exists
         profile.score = rows[0].score;
         profile.rank = rows[0].rank || profile.rank;
-          
-        // Update local cache
-        const raw = localStorage.getItem(PROFILES_KEY);
-        const all = raw ? JSON.parse(raw) : {};
-        all[userId] = profile;
-        localStorage.setItem(PROFILES_KEY, JSON.stringify(all));
       }
-    } catch (e) {
-      console.warn("NeonDB Profile Sync Failed", e);
-    }
+    } catch (e) {}
   }
 
   return profile;
@@ -230,18 +261,6 @@ export const getUserProfile = async (): Promise<UserProfile> => {
 
 const updateUserScore = async (points: number) => {
   const userId = getCurrentUserId();
-  
-  // 1. Local Update
-  try {
-    const raw = localStorage.getItem(PROFILES_KEY);
-    const allProfiles = raw ? JSON.parse(raw) : {};
-    if (allProfiles[userId]) {
-      allProfiles[userId].score += points;
-      localStorage.setItem(PROFILES_KEY, JSON.stringify(allProfiles));
-    }
-  } catch (e) {}
-
-  // 2. DB Update
   const pool = getDbPool();
   if (pool && userId !== 'guest') {
     try {
@@ -249,9 +268,7 @@ const updateUserScore = async (points: number) => {
         `UPDATE user_profiles SET score = score + $1, last_active = NOW() WHERE user_id = $2`,
         [points, userId]
       );
-    } catch (e) {
-      console.error("Failed to update score in DB", e);
-    }
+    } catch (e) {}
   }
 };
 

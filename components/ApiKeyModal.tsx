@@ -1,18 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Key, ShieldCheck, Save, Database, Download, Upload, Check, Loader2, Server } from 'lucide-react';
-import { createBackupBlob, restoreFromBackup } from '../services/dataService';
+import { X, Key, ShieldCheck, Save, Download, Upload, Check, Loader2, Users } from 'lucide-react';
+import { createBackupBlob, restoreFromBackup, getGlobalApiKeys, saveGlobalApiKeys } from '../services/dataService';
 
 interface ApiKeyModalProps {
   onClose: () => void;
 }
 
 const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'api' | 'db' | 'data'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'data'>('api');
   
   // API Key State
   const [keys, setKeys] = useState<string[]>(['', '', '', '', '']);
-  const [neonUrl, setNeonUrl] = useState('');
+  const [isLoadingKeys, setIsLoadingKeys] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Data Management State
@@ -21,19 +22,29 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Load Keys
-    const loadedKeys = ['', '', '', '', ''];
-    const legacy = localStorage.getItem('user_gemini_key');
-    if (legacy) loadedKeys[0] = legacy;
-    for (let i = 0; i < 5; i++) {
-      const k = localStorage.getItem(`user_gemini_key_${i + 1}`);
-      if (k) loadedKeys[i] = k;
-    }
-    setKeys(loadedKeys);
-
-    // Load DB Url
-    const db = localStorage.getItem('neon_db_url');
-    if (db) setNeonUrl(db);
+    const fetchKeys = async () => {
+      setIsLoadingKeys(true);
+      try {
+        // Fetch global keys from NeonDB
+        const dbKeys = await getGlobalApiKeys();
+        if (dbKeys && dbKeys.length > 0) {
+          setKeys(dbKeys);
+        } else {
+          // Fallback to local storage only if DB is empty/fails
+          const loadedKeys = ['', '', '', '', ''];
+          for (let i = 0; i < 5; i++) {
+            const k = localStorage.getItem(`user_gemini_key_${i + 1}`);
+            if (k) loadedKeys[i] = k;
+          }
+          setKeys(loadedKeys);
+        }
+      } catch (e) {
+        console.error("Failed to load keys", e);
+      } finally {
+        setIsLoadingKeys(false);
+      }
+    };
+    fetchKeys();
   }, []);
 
   const handleChange = (index: number, value: string) => {
@@ -42,23 +53,28 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
     setKeys(newKeys);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     
-    // Save Keys
-    localStorage.removeItem('user_gemini_key');
-    keys.forEach((k, index) => {
-      const storageKey = `user_gemini_key_${index + 1}`;
-      if (k.trim()) localStorage.setItem(storageKey, k.trim());
-      else localStorage.removeItem(storageKey);
-    });
+    try {
+      // 1. Save to NeonDB (Shared)
+      await saveGlobalApiKeys(keys);
 
-    // Save DB
-    if (neonUrl.trim()) localStorage.setItem('neon_db_url', neonUrl.trim());
-    else localStorage.removeItem('neon_db_url');
+      // 2. Also cache locally for redundancy
+      keys.forEach((k, index) => {
+        const storageKey = `user_gemini_key_${index + 1}`;
+        if (k.trim()) localStorage.setItem(storageKey, k.trim());
+        else localStorage.removeItem(storageKey);
+      });
 
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+    } catch (e) {
+      alert("Failed to save keys to database.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDownloadBackup = () => {
@@ -105,9 +121,8 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
 
         {/* Tabs */}
         <div className="flex border-b border-borderSkin bg-main">
-          <button onClick={() => setActiveTab('api')} className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 ${activeTab === 'api' ? 'border-amber-500 text-amber-600' : 'border-transparent text-textMuted'}`}>API Keys</button>
-          <button onClick={() => setActiveTab('db')} className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 ${activeTab === 'db' ? 'border-amber-500 text-amber-600' : 'border-transparent text-textMuted'}`}>Database</button>
-          <button onClick={() => setActiveTab('data')} className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 ${activeTab === 'data' ? 'border-amber-500 text-amber-600' : 'border-transparent text-textMuted'}`}>Data</button>
+          <button onClick={() => setActiveTab('api')} className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 ${activeTab === 'api' ? 'border-amber-500 text-amber-600' : 'border-transparent text-textMuted'}`}>Shared Keys</button>
+          <button onClick={() => setActiveTab('data')} className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 ${activeTab === 'data' ? 'border-amber-500 text-amber-600' : 'border-transparent text-textMuted'}`}>Data Backup</button>
         </div>
 
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
@@ -117,39 +132,25 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
             {activeTab === 'api' && (
               <div className="space-y-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3">
-                    <Key className="text-amber-600 shrink-0" size={18} />
-                    <p className="text-xs text-amber-800">Configure keys to avoid rate limits.</p>
-                </div>
-                {keys.map((k, index) => (
-                  <div key={index} className="space-y-1">
-                    <label className="text-[10px] font-bold text-textMuted uppercase">Key {index + 1}</label>
-                    <input type="password" value={k} onChange={(e) => handleChange(index, e.target.value)} placeholder={`AIzaSy...`} className="w-full bg-main border border-borderSkin rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono" />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* --- DATABASE TAB --- */}
-            {activeTab === 'db' && (
-              <div className="space-y-4">
-                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex gap-3">
-                    <Server className="text-blue-600 shrink-0" size={18} />
-                    <div className="text-xs text-blue-800">
-                      <p className="font-bold mb-1">Status: {neonUrl ? 'Custom' : 'Default Active'}</p>
-                      <p>Tracking activity for Divesh & Manish across devices.</p>
+                    <Users className="text-amber-600 shrink-0" size={18} />
+                    <div className="text-xs text-amber-800">
+                      <p className="font-bold mb-1">Shared Environment</p>
+                      <p>Keys saved here are securely stored in the database and shared between Divesh & Manish.</p>
                     </div>
-                 </div>
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-textMuted uppercase">Connection String</label>
-                    <input 
-                      type="password" 
-                      value={neonUrl} 
-                      onChange={(e) => setNeonUrl(e.target.value)} 
-                      placeholder="Default built-in database active" 
-                      className="w-full bg-main border border-borderSkin rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono" 
-                    />
-                    <p className="text-[10px] text-textMuted pt-1">Leave empty to use the secure default connection.</p>
-                 </div>
+                </div>
+                
+                {isLoadingKeys ? (
+                  <div className="flex justify-center py-8 text-amber-600">
+                    <Loader2 className="animate-spin" />
+                  </div>
+                ) : (
+                  keys.map((k, index) => (
+                    <div key={index} className="space-y-1">
+                      <label className="text-[10px] font-bold text-textMuted uppercase">Key {index + 1}</label>
+                      <input type="password" value={k} onChange={(e) => handleChange(index, e.target.value)} placeholder={`AIzaSy...`} className="w-full bg-main border border-borderSkin rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono" />
+                    </div>
+                  ))
+                )}
               </div>
             )}
 
@@ -173,11 +174,15 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
                </div>
             )}
 
-            {/* Save Button (Visible for API & DB tabs) */}
-            {activeTab !== 'data' && (
+            {/* Save Button (Visible for API tabs) */}
+            {activeTab === 'api' && (
               <div className="pt-2 mt-auto">
-                <button type="submit" className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${showSuccess ? 'bg-emerald-500 text-white' : 'bg-textMain text-main'}`}>
-                  {showSuccess ? <><Check size={18} /> Saved</> : <><Save size={18} /> Save Settings</>}
+                <button 
+                  type="submit" 
+                  disabled={isSaving || isLoadingKeys}
+                  className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${showSuccess ? 'bg-emerald-500 text-white' : 'bg-textMain text-main hover:opacity-90'}`}
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={18} /> : showSuccess ? <><Check size={18} /> Saved Shared Keys</> : <><Save size={18} /> Save & Share</>}
                 </button>
               </div>
             )}
