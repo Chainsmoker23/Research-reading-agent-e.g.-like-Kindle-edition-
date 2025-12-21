@@ -13,13 +13,24 @@ const HISTORY_KEY = 'parallax_history';
 const PROFILES_KEY = 'parallax_profiles';
 
 // --- CONFIGURATION ---
-// Hardcoded per user request
-const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-pond-abyorp16-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+// Removed channel_binding=require as it can cause issues in browser environments.
+// Kept sslmode=require.
+const DEFAULT_NEON_URL = 'postgresql://neondb_owner:npg_C2gOYZeQ6WwR@ep-silent-pond-abyorp16-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require';
 
 // --- DB CONNECTION ---
 
+// Use a singleton pool instance to avoid exhausting connections
+let globalPool: Pool | null = null;
+
 const getDbPool = () => {
-  return new Pool({ connectionString: DEFAULT_NEON_URL });
+  if (!globalPool) {
+    console.log("Initializing new NeonDB Pool...");
+    globalPool = new Pool({ 
+      connectionString: DEFAULT_NEON_URL,
+      // connectionTimeoutMillis: 5000,
+    });
+  }
+  return globalPool;
 };
 
 // --- HELPER METHODS ---
@@ -40,18 +51,25 @@ const getCurrentUserId = () => {
  */
 const ensureTablesExist = async (pool: Pool) => {
   try {
+    // We execute these sequentially to ensure stability
     await pool.query(`
       CREATE TABLE IF NOT EXISTS system_settings (
         key_name TEXT PRIMARY KEY,
         key_value TEXT
-      );
+      )
+    `);
+    
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS user_profiles (
         user_id TEXT PRIMARY KEY,
         score INTEGER DEFAULT 0,
         rank TEXT,
         last_active TIMESTAMP DEFAULT NOW(),
         joined_at TIMESTAMP DEFAULT NOW()
-      );
+      )
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS reading_history (
         id SERIAL PRIMARY KEY,
         user_id TEXT,
@@ -62,17 +80,21 @@ const ensureTablesExist = async (pool: Pool) => {
         paper_source TEXT,
         read_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(user_id, paper_title)
-      );
+      )
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
         user_id TEXT,
         action_type TEXT,
         details TEXT,
         created_at TIMESTAMP DEFAULT NOW()
-      );
+      )
     `);
   } catch (e) {
     console.error("Error initializing tables:", e);
+    // Don't throw, try to proceed, maybe tables exist
   }
 };
 
@@ -81,30 +103,36 @@ const ensureTablesExist = async (pool: Pool) => {
 export const getGlobalApiKeys = async (): Promise<string[]> => {
   const pool = getDbPool();
   try {
-    // Attempt to fetch
     const { rows } = await pool.query(`SELECT key_value FROM system_settings WHERE key_name = 'shared_api_keys'`);
     if (rows.length > 0) {
       return JSON.parse(rows[0].key_value);
     }
   } catch (e: any) {
-    // If table doesn't exist yet, try to create it and return empty
-    if (e.message?.includes('relation "system_settings" does not exist')) {
-      await ensureTablesExist(pool);
-    }
+    console.warn("Fetch keys failed, attempting table init...", e.message);
+    // If it fails, it might be first run, try ensure tables
+    await ensureTablesExist(pool);
+    return ['', '', '', '', ''];
   }
   return ['', '', '', '', ''];
 };
 
 export const saveGlobalApiKeys = async (keys: string[]): Promise<void> => {
   const pool = getDbPool();
+  
+  // Ensure tables exist before writing
   await ensureTablesExist(pool);
   
-  await pool.query(`
-    INSERT INTO system_settings (key_name, key_value) 
-    VALUES ('shared_api_keys', $1)
-    ON CONFLICT (key_name) 
-    DO UPDATE SET key_value = $1
-  `, [JSON.stringify(keys)]);
+  try {
+    await pool.query(`
+      INSERT INTO system_settings (key_name, key_value) 
+      VALUES ('shared_api_keys', $1)
+      ON CONFLICT (key_name) 
+      DO UPDATE SET key_value = $1
+    `, [JSON.stringify(keys)]);
+  } catch (e: any) {
+    console.error("DB Save Error:", e);
+    throw new Error(e.message || "Database write failed");
+  }
 };
 
 // --- LOGGING ---
@@ -128,8 +156,8 @@ export const logActivity = async (action: string, details: string) => {
         [userId]
       );
     } catch (e) {
-      // If fails, try init tables once
-      await ensureTablesExist(pool);
+      // If fails, silent
+      console.warn("Log activity failed", e);
     }
   }
 };
@@ -173,8 +201,7 @@ export const getReadingHistory = async (): Promise<ReadHistoryItem[]> => {
         history = dbHistory;
       }
     } catch (e) {
-       // Silent fail or init tables
-       await ensureTablesExist(pool);
+       console.warn("Fetch history failed", e);
     }
   }
 

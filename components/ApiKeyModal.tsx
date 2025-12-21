@@ -70,8 +70,9 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
 
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
-    } catch (e) {
-      alert("Failed to save keys to database.");
+    } catch (e: any) {
+      console.error("Detailed Save Error:", e);
+      alert(`Failed to save keys to database: ${e.message || "Unknown Error"}`);
     } finally {
       setIsSaving(false);
     }
