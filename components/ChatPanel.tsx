@@ -136,7 +136,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ paper, isOpen, onClose }) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a question..."
-            className="w-full bg-main border-none rounded-xl py-3 pl-4 pr-12 text-sm text-textMain focus:outline-none focus:ring-2 focus:ring-amber-200 focus:bg-surface transition-all placeholder:text-textMuted"
+            className="w-full bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl py-3 pl-4 pr-12 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300 transition-all placeholder:text-gray-400 dark:placeholder:text-gray-500 shadow-sm"
           />
           <button 
             type="submit"
