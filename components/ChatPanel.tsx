@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Paper } from '../types';
 import { Send, X, Bot, User } from 'lucide-react';
@@ -63,6 +64,66 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ paper, isOpen, onClose }) => {
     }
   };
 
+  // --- Simple Markdown Renderer for Chat ---
+  
+  const parseInline = (text: string) => {
+    // Handle bold (**text**)
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-bold">{part.slice(2, -2)}</strong>;
+      }
+      // Handle italic (*text*)
+      const subParts = part.split(/(\*[^*]+?\*)/g);
+      return subParts.map((subPart, j) => {
+        if (subPart.startsWith('*') && subPart.endsWith('*') && subPart.length > 2) {
+          return <em key={`${i}-${j}`} className="italic">{subPart.slice(1, -1)}</em>;
+        }
+        return subPart;
+      });
+    });
+  };
+
+  const renderMessageText = (text: string) => {
+    const lines = text.split('\n');
+    return lines.map((line, index) => {
+       const trimmed = line.trim();
+       if (!trimmed) return <div key={index} className="h-2"></div>;
+
+       // Headers (### Header)
+       if (trimmed.startsWith('### ')) {
+         return <h4 key={index} className="font-bold text-sm mt-3 mb-1 underline decoration-dotted opacity-90">{parseInline(trimmed.substring(4))}</h4>;
+       }
+       if (trimmed.startsWith('## ')) {
+         return <h3 key={index} className="font-bold text-base mt-3 mb-1">{parseInline(trimmed.substring(3))}</h3>;
+       }
+       
+       // Bullet Lists (* Item or - Item)
+       if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+         return (
+           <div key={index} className="flex items-start gap-2 ml-1 mb-1">
+             <span className="opacity-70 mt-1.5 text-[6px] shrink-0 text-current">●</span>
+             <span>{parseInline(trimmed.substring(2))}</span>
+           </div>
+         );
+       }
+       
+       // Numbered Lists (1. Item)
+       const numMatch = trimmed.match(/^(\d+)\.\s/);
+       if (numMatch) {
+         return (
+           <div key={index} className="flex items-start gap-2 ml-1 mb-1">
+             <span className="font-bold text-xs shrink-0 mt-0.5">{numMatch[1]}.</span>
+             <span>{parseInline(trimmed.substring(numMatch[0].length))}</span>
+           </div>
+         );
+       }
+
+       // Standard Paragraph
+       return <p key={index} className="mb-1 last:mb-0 leading-relaxed">{parseInline(line)}</p>;
+    });
+  };
+
   return (
     <div 
       className={`fixed top-[73px] right-0 bottom-0 bg-surface border-l border-borderSkin shadow-xl transition-transform duration-300 transform w-full md:w-[400px] flex flex-col z-30 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
@@ -79,7 +140,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ paper, isOpen, onClose }) => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-main/50">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-main/50 scroll-smooth">
         {messages.map((msg) => (
           <div 
             key={msg.id} 
@@ -88,12 +149,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ paper, isOpen, onClose }) => {
             <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-textMain text-main' : 'bg-amber-100 text-amber-800'}`}>
               {msg.role === 'user' ? <User size={14} /> : <Bot size={16} />}
             </div>
-            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
               msg.role === 'user' 
                 ? 'bg-textMain text-main rounded-tr-none' 
                 : 'bg-surface text-textMain border border-borderSkin rounded-tl-none'
             }`}>
-              {msg.text}
+              {/* Use the markdown renderer for content */}
+              {renderMessageText(msg.text)}
             </div>
           </div>
         ))}
