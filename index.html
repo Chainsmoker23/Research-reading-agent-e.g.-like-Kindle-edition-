@@ -5,7 +5,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenParallax</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Added Typography Plugin -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <!-- KaTeX CSS for Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -19,6 +22,18 @@
               textMuted: 'var(--text-muted)',
               borderSkin: 'var(--border-skin)',
             },
+            typography: (theme) => ({
+              DEFAULT: {
+                css: {
+                  color: 'var(--text-main)',
+                  '--tw-prose-headings': 'var(--text-main)',
+                  '--tw-prose-body': 'var(--text-main)',
+                  '--tw-prose-bold': 'var(--text-main)',
+                  '--tw-prose-links': '#d97706', // Amber-600
+                  maxWidth: 'none',
+                },
+              },
+            }),
             animation: {
               'scroll': 'scroll 40s linear infinite',
               'fade-in': 'fadeIn 0.5s ease-out forwards',
@@ -141,7 +156,11 @@
     "react": "https://esm.sh/react@^19.2.3",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "@neondatabase/serverless": "https://esm.sh/@neondatabase/serverless@^0.9.0"
+    "@neondatabase/serverless": "https://esm.sh/@neondatabase/serverless@^0.9.0",
+    "react-markdown": "https://esm.sh/react-markdown@9.0.1?bundle",
+    "remark-gfm": "https://esm.sh/remark-gfm@4.0.0?bundle",
+    "rehype-katex": "https://esm.sh/rehype-katex@7.0.0?bundle",
+    "remark-math": "https://esm.sh/remark-math@6.0.0?bundle"
   }
 }
 </script>
@@ -151,4 +170,3 @@
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
-    

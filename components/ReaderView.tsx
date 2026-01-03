@@ -1,6 +1,11 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Paper } from '../types';
 import { ArrowLeft, MessageSquare, Loader2, CheckCircle, BookOpenCheck } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 interface ReaderViewProps {
   paper: Paper;
@@ -59,71 +64,8 @@ const ReaderView: React.FC<ReaderViewProps> = ({
     return () => clearInterval(interval);
   }, [isLoading, paper.title]);
 
-  // Simple Markdown Parser for the specific format we requested
-  const renderContent = (markdown: string) => {
-    const lines = markdown.split('\n');
-    let elements: React.ReactNode[] = [];
-    
-    lines.forEach((line, index) => {
-      const key = `line-${index}`;
-      
-      // Headers
-      if (line.startsWith('## ')) {
-        elements.push(
-          <h2 key={key} className="font-serif text-2xl font-bold text-textMain mt-10 mb-4 border-b border-borderSkin pb-2">
-            {line.replace('## ', '')}
-          </h2>
-        );
-      } 
-      // Sub-headers
-      else if (line.startsWith('### ')) {
-        elements.push(
-          <h3 key={key} className="font-serif text-xl font-semibold text-textMain mt-6 mb-3">
-            {line.replace('### ', '')}
-          </h3>
-        );
-      }
-      // List items
-      else if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
-        elements.push(
-          <li key={key} className="ml-6 list-disc text-textMain mb-2 leading-relaxed">
-             {parseInline(line.replace(/^[\*\-]\s/, ''))}
-          </li>
-        );
-      }
-      // Empty lines
-      else if (line.trim() === '') {
-        elements.push(<div key={key} className="h-4" />);
-      } 
-      // Paragraphs
-      else {
-        elements.push(
-          <p key={key} className="text-lg leading-relaxed text-textMain mb-4 font-serif text-justify">
-            {parseInline(line)}
-          </p>
-        );
-      }
-    });
-
-    return elements;
-  };
-
-  // Helper for bold/italic
-  const parseInline = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-semibold text-textMain">{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith('*') && part.endsWith('*')) {
-        return <em key={i} className="italic">{part.slice(1, -1)}</em>;
-      }
-      return part;
-    });
-  };
-
   return (
-    <div className={`flex flex-col h-full transition-all duration-300 ${isChatOpen ? 'mr-0 lg:mr-[400px]' : ''}`}>
+    <div className={`flex flex-col h-full transition-all duration-300 ${isChatOpen ? 'mr-0 lg:mr-[450px]' : ''}`}>
       {/* Toolbar */}
       <div className="sticky top-0 z-20 bg-main border-b border-borderSkin px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
         <button 
@@ -194,8 +136,14 @@ const ReaderView: React.FC<ReaderViewProps> = ({
                   {paper.source} • {paper.year}
                 </p>
               </div>
-              <div className="prose prose-stone prose-lg max-w-none text-textMain">
-                {renderContent(content)}
+              
+              <div className="prose prose-lg dark:prose-invert prose-headings:font-serif prose-p:text-justify max-w-none text-textMain">
+                <ReactMarkdown 
+                   remarkPlugins={[remarkGfm, remarkMath]} 
+                   rehypePlugins={[rehypeKatex]}
+                >
+                  {content}
+                </ReactMarkdown>
               </div>
               
               {/* Mark as Completed Button */}
