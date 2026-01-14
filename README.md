@@ -33,4 +33,4 @@ Our mission is to democratize access to scientific knowledge by lowering the cog
 1.  **Search:** Enter a topic (e.g., "Quantum Computing" or "CRISPR") in the central search bar.
 2.  **Filter:** Use the filter menu to select specific years or journals (e.g., "After 2023", "Nature").
 3.  **Read:** Select a paper to generate a simplified "Kindle-style" adaptation.
-4.  **Ask:** Open the chat panel to ask specific questions about the research
+4.  **Ask:** Open the chat panel to ask specific questions about the research.
